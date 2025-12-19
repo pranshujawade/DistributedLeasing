@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net6.0;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- NuGet Package Metadata -->
+    <PackageId>DistributedLeasing.Extensions.DependencyInjection</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>DistributedLeasing Contributors</Authors>
+    <Company>DistributedLeasing</Company>
+    <Description>Dependency injection extensions for the DistributedLeasing library. Provides service registration helpers for ASP.NET Core and other DI-enabled applications.</Description>
+    <PackageTags>distributed-leasing;dependency-injection;di;aspnetcore;extensions</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/yourusername/DistributedLeasing</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yourusername/DistributedLeasing</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright © 2024 DistributedLeasing Contributors</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DistributedLeasing.Azure.Blob\DistributedLeasing.Azure.Blob.csproj" />
+    <ProjectReference Include="..\DistributedLeasing.Azure.Cosmos\DistributedLeasing.Azure.Cosmos.csproj" />
+    <ProjectReference Include="..\DistributedLeasing.Azure.Redis\DistributedLeasing.Azure.Redis.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

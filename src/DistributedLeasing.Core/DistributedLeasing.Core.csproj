@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net6.0;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- NuGet Package Metadata -->
+    <PackageId>DistributedLeasing.Core</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>DistributedLeasing Contributors</Authors>
+    <Company>DistributedLeasing</Company>
+    <Description>Core abstractions and interfaces for the DistributedLeasing library. Provides fundamental lease management contracts for building distributed coordination systems.</Description>
+    <PackageTags>distributed-leasing;leader-election;distributed-lock;distributed-coordination;azure</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/yourusername/DistributedLeasing</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yourusername/DistributedLeasing</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright © 2024 DistributedLeasing Contributors</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

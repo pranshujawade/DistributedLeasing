@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net6.0;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- NuGet Package Metadata -->
+    <PackageId>DistributedLeasing.Abstractions</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>DistributedLeasing Contributors</Authors>
+    <Company>DistributedLeasing</Company>
+    <Description>Provider abstractions and base classes for the DistributedLeasing library. Implement these interfaces to create custom lease providers.</Description>
+    <PackageTags>distributed-leasing;leader-election;distributed-lock;provider;abstraction</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/yourusername/DistributedLeasing</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yourusername/DistributedLeasing</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright © 2024 DistributedLeasing Contributors</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DistributedLeasing.Core\DistributedLeasing.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net6.0;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- NuGet Package Metadata -->
+    <PackageId>DistributedLeasing.Azure.Blob</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>DistributedLeasing Contributors</Authors>
+    <Company>DistributedLeasing</Company>
+    <Description>Azure Blob Storage provider for the DistributedLeasing library. Implements distributed leasing using native Azure Blob lease capabilities with managed identity support.</Description>
+    <PackageTags>distributed-leasing;leader-election;azure;blob-storage;distributed-lock;managed-identity</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/yourusername/DistributedLeasing</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yourusername/DistributedLeasing</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright © 2024 DistributedLeasing Contributors</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DistributedLeasing.Abstractions\DistributedLeasing.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.19.1" />
+    <PackageReference Include="Azure.Identity" Version="1.10.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
