@@ -27,9 +27,8 @@ namespace DistributedLeasing.Azure.Blob
         /// <param name="leaseClient">The Azure blob lease client.</param>
         /// <param name="leaseName">The name of the lease.</param>
         /// <param name="duration">The lease duration.</param>
-        /// <param name="options">Optional lease configuration including auto-renewal settings.</param>
-        public BlobLease(BlobLeaseClient leaseClient, string leaseName, TimeSpan duration, LeaseOptions? options = null)
-            : base(leaseClient.LeaseId, leaseName, DateTimeOffset.UtcNow, duration, options)
+        public BlobLease(BlobLeaseClient leaseClient, string leaseName, TimeSpan duration)
+            : base(leaseClient.LeaseId, leaseName, DateTimeOffset.UtcNow, duration)
         {
             _leaseClient = leaseClient ?? throw new ArgumentNullException(nameof(leaseClient));
             _leaseDuration = duration;

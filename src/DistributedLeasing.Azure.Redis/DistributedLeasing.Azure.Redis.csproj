@@ -32,8 +32,4 @@
     <PackageReference Include="Azure.Identity" Version="1.17.1" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
-  </ItemGroup>
-
 </Project>
