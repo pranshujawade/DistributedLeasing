@@ -1,5 +1,6 @@
 using DistributedLeasing.Abstractions;
 using DistributedLeasing.Core;
+using DistributedLeasing.Core.Exceptions;
 using StackExchange.Redis;
 
 namespace DistributedLeasing.Azure.Redis;
@@ -60,8 +61,11 @@ internal class RedisLease : LeaseBase
             {
                 throw new LeaseRenewalException(
                     $"Lease '{LeaseName}' has expired and cannot be renewed.",
-                    LeaseName,
-                    LeaseId);
+                    null!)
+                {
+                    LeaseName = LeaseName,
+                    LeaseId = LeaseId
+                };
             }
 
             // Lua script for atomic renewal - only extend if we still own the lease
@@ -74,18 +78,19 @@ internal class RedisLease : LeaseBase
 
             var result = await _database.ScriptEvaluateAsync(
                 renewScript,
-                new RedisKey[] { _redisKey },
-                new RedisValue[] { LeaseId, ttlMilliseconds });
+                [_redisKey],
+                [LeaseId, ttlMilliseconds]);
 
             if (result.IsNull || (int)result == 0)
             {
-                throw new LeaseLostException(
-                    $"Lease '{LeaseName}' is no longer held by this instance.",
-                    LeaseName,
-                    LeaseId);
+                var ex = new LeaseLostException(
+                    $"Lease '{LeaseName}' is no longer held by this instance.");
+                ex.LeaseName = LeaseName;
+                ex.LeaseId = LeaseId;
+                throw ex;
             }
 
-            UpdateExpiration(newExpiration);
+            //UpdateExpiration(newExpiration);
         }
         catch (LeaseLostException)
         {
@@ -95,9 +100,11 @@ internal class RedisLease : LeaseBase
         {
             throw new LeaseRenewalException(
                 $"Failed to renew lease '{LeaseName}' in Redis: {ex.Message}",
-                ex,
-                LeaseName,
-                LeaseId);
+                ex)
+            {
+                LeaseName = LeaseName,
+                LeaseId = LeaseId
+            };
         }
     }
 
@@ -124,8 +131,8 @@ internal class RedisLease : LeaseBase
 
             await _database.ScriptEvaluateAsync(
                 releaseScript,
-                new RedisKey[] { _redisKey },
-                new RedisValue[] { LeaseId });
+                [_redisKey],
+                [LeaseId]);
         }
         catch (Exception)
         {

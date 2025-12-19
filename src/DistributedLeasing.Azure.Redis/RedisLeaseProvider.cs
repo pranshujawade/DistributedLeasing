@@ -1,6 +1,8 @@
+using Azure.Core;
 using Azure.Identity;
 using DistributedLeasing.Abstractions;
 using DistributedLeasing.Core;
+using DistributedLeasing.Core.Exceptions;
 using StackExchange.Redis;
 
 namespace DistributedLeasing.Azure.Redis;
@@ -67,7 +69,10 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
             throw new ArgumentOutOfRangeException(nameof(duration), "Duration must be positive.");
         }
 
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(GetType().FullName);
+        }
 
         var leaseId = Guid.NewGuid().ToString();
         var redisKey = GetRedisKey(leaseName);
@@ -111,8 +116,10 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
         {
             throw new LeaseAcquisitionException(
                 $"Failed to acquire lease '{leaseName}' from Redis: {ex.Message}",
-                ex,
-                leaseName);
+                ex)
+            {
+                LeaseName = leaseName
+            };
         }
     }
 
@@ -124,7 +131,10 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
             throw new ArgumentNullException(nameof(lease));
         }
 
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(GetType().FullName);
+        }
 
         if (lease is RedisLease redisLease)
         {
@@ -146,7 +156,10 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
             throw new ArgumentNullException(nameof(lease));
         }
 
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(GetType().FullName);
+        }
 
         if (lease is RedisLease redisLease)
         {
@@ -168,7 +181,10 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
             throw new ArgumentException("Lease name cannot be null or whitespace.", nameof(leaseName));
         }
 
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(GetType().FullName);
+        }
 
         var redisKey = GetRedisKey(leaseName);
 
@@ -203,7 +219,7 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
 
         if (!string.IsNullOrWhiteSpace(options.ConnectionString))
         {
-            configOptions = ConfigurationOptions.Parse(options.ConnectionString);
+            configOptions = ConfigurationOptions.Parse(options.ConnectionString!);
         }
         else
         {
@@ -236,10 +252,10 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
         return ConnectionMultiplexer.Connect(configOptions);
     }
 
-    private static async Task<string> GetAzureAccessToken(Azure.Core.TokenCredential credential, string hostName)
+    private static async Task<string> GetAzureAccessToken(TokenCredential credential, string hostName)
     {
         // Azure Redis Cache scope for AAD authentication
-        var tokenRequestContext = new Azure.Core.TokenRequestContext(
+        var tokenRequestContext = new TokenRequestContext(
             new[] { "https://redis.azure.com/.default" });
 
         var token = await credential.GetTokenAsync(tokenRequestContext, default);

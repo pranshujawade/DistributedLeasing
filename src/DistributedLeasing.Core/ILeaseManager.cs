@@ -45,7 +45,7 @@ namespace DistributedLeasing.Core
         /// <exception cref="ArgumentOutOfRangeException">
         /// Thrown when <paramref name="duration"/> is outside the valid range for the provider.
         /// </exception>
-        /// <exception cref="LeaseAcquisitionException">
+        /// <exception cref="Exceptions.LeaseException">
         /// Thrown when an unexpected error occurs during lease acquisition.
         /// </exception>
         /// <exception cref="OperationCanceledException">
@@ -91,7 +91,7 @@ namespace DistributedLeasing.Core
         /// <exception cref="TimeoutException">
         /// Thrown when the lease could not be acquired within the specified <paramref name="timeout"/>.
         /// </exception>
-        /// <exception cref="LeaseAcquisitionException">
+        /// <exception cref="Exceptions.LeaseException">
         /// Thrown when an unexpected error occurs during lease acquisition.
         /// </exception>
         /// <exception cref="OperationCanceledException">

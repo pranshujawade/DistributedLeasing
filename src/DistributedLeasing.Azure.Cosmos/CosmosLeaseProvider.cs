@@ -2,6 +2,7 @@ using Azure.Identity;
 using DistributedLeasing.Abstractions;
 using DistributedLeasing.Azure.Cosmos.Models;
 using DistributedLeasing.Core;
+using DistributedLeasing.Core.Exceptions;
 using Microsoft.Azure.Cosmos;
 
 namespace DistributedLeasing.Azure.Cosmos;
@@ -68,7 +69,10 @@ public class CosmosLeaseProvider : ILeaseProvider, IDisposable
             throw new ArgumentOutOfRangeException(nameof(duration), "Duration must be positive.");
         }
 
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(GetType().FullName);
+        }
 
         var leaseId = Guid.NewGuid().ToString();
         var now = DateTimeOffset.UtcNow;
@@ -169,8 +173,10 @@ public class CosmosLeaseProvider : ILeaseProvider, IDisposable
         {
             throw new LeaseAcquisitionException(
                 $"Failed to acquire lease '{leaseName}' from Cosmos DB: {ex.Message}",
-                ex,
-                leaseName);
+                ex)
+            {
+                LeaseName = leaseName
+            };
         }
     }
 
@@ -182,7 +188,10 @@ public class CosmosLeaseProvider : ILeaseProvider, IDisposable
             throw new ArgumentNullException(nameof(lease));
         }
 
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(GetType().FullName);
+        }
 
         if (lease is CosmosLease cosmosLease)
         {
@@ -204,7 +213,10 @@ public class CosmosLeaseProvider : ILeaseProvider, IDisposable
             throw new ArgumentNullException(nameof(lease));
         }
 
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(GetType().FullName);
+        }
 
         if (lease is CosmosLease cosmosLease)
         {
@@ -226,7 +238,10 @@ public class CosmosLeaseProvider : ILeaseProvider, IDisposable
             throw new ArgumentException("Lease name cannot be null or whitespace.", nameof(leaseName));
         }
 
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(GetType().FullName);
+        }
 
         var documentId = GetDocumentId(leaseName);
 

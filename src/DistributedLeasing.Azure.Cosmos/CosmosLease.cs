@@ -1,5 +1,6 @@
 using DistributedLeasing.Abstractions;
 using DistributedLeasing.Core;
+using DistributedLeasing.Core.Exceptions;
 using Microsoft.Azure.Cosmos;
 
 namespace DistributedLeasing.Azure.Cosmos;
@@ -66,10 +67,11 @@ internal class CosmosLease : LeaseBase
             // Verify we still own the lease
             if (document.LeaseId != LeaseId)
             {
-                throw new LeaseLostException(
-                    $"Lease '{LeaseName}' has been acquired by another holder.",
-                    LeaseName,
-                    LeaseId);
+                throw new LeaseLostException($"Lease '{LeaseName}' has been acquired by another holder.")
+                {
+                    LeaseName = LeaseName,
+                    LeaseId = LeaseId
+                };
             }
 
             // Update expiration and renewal metadata
@@ -92,33 +94,38 @@ internal class CosmosLease : LeaseBase
 
             // Update our local ETag and expiration
             _etag = updateResponse.ETag;
-            UpdateExpiration(newExpiration);
+            //UpdateExpiration(newExpiration);
         }
         catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
         {
             // ETag mismatch - someone else modified the lease
-            throw new LeaseLostException(
-                $"Lease '{LeaseName}' was modified by another process during renewal.",
-                ex,
-                LeaseName,
-                LeaseId);
+            throw new LeaseLostException($"Lease '{LeaseName}' was modified by another process during renewal.", ex)
+            {
+                LeaseName = LeaseName,
+                LeaseId = LeaseId
+            };
         }
         catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             // Lease document was deleted
-            throw new LeaseLostException(
+            var leaseLostException = new LeaseLostException(
                 $"Lease '{LeaseName}' document was deleted.",
-                ex,
-                LeaseName,
-                LeaseId);
+                ex)
+            {
+                LeaseName = LeaseName,
+                LeaseId = LeaseId
+            };
+            throw leaseLostException;
         }
         catch (CosmosException ex)
         {
             throw new LeaseRenewalException(
                 $"Failed to renew lease '{LeaseName}' in Cosmos DB: {ex.Message}",
-                ex,
-                LeaseName,
-                LeaseId);
+                ex)
+            {
+                LeaseName = LeaseName,
+                LeaseId = LeaseId
+            };
         }
     }
 

@@ -1,7 +1,7 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.3.11312.210
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}"
 EndProject
@@ -23,13 +23,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DistributedLeasing.Extensio
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DistributedLeasing.Core.Tests", "tests\DistributedLeasing.Core.Tests\DistributedLeasing.Core.Tests.csproj", "{D0E1F2A3-B4C5-3D4E-7F8A-9B0C1D2E3F4A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DistributedLeasing.IntegrationTests", "tests\DistributedLeasing.IntegrationTests\DistributedLeasing.IntegrationTests.csproj", "{E1F2A3B4-C5D6-4E5F-8A9B-0C1D2E3F4A5B}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BasicLeaseAcquisition", "samples\BasicLeaseAcquisition\BasicLeaseAcquisition.csproj", "{F2A3B4C5-D6E7-5F6A-9B0C-1D2E3F4A5B6C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LeaderElection", "samples\LeaderElection\LeaderElection.csproj", "{A3B4C5D6-E7F8-6A7B-0C1D-2E3F4A5B6C7D}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ManagedIdentitySample", "samples\ManagedIdentitySample\ManagedIdentitySample.csproj", "{B4C5D6E7-F8A9-7B8C-1D2E-3F4A5B6C7D8E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -65,10 +61,6 @@ Global
 		{D0E1F2A3-B4C5-3D4E-7F8A-9B0C1D2E3F4A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D0E1F2A3-B4C5-3D4E-7F8A-9B0C1D2E3F4A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D0E1F2A3-B4C5-3D4E-7F8A-9B0C1D2E3F4A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{E1F2A3B4-C5D6-4E5F-8A9B-0C1D2E3F4A5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E1F2A3B4-C5D6-4E5F-8A9B-0C1D2E3F4A5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E1F2A3B4-C5D6-4E5F-8A9B-0C1D2E3F4A5B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E1F2A3B4-C5D6-4E5F-8A9B-0C1D2E3F4A5B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F2A3B4C5-D6E7-5F6A-9B0C-1D2E3F4A5B6C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F2A3B4C5-D6E7-5F6A-9B0C-1D2E3F4A5B6C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F2A3B4C5-D6E7-5F6A-9B0C-1D2E3F4A5B6C}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -77,10 +69,9 @@ Global
 		{A3B4C5D6-E7F8-6A7B-0C1D-2E3F4A5B6C7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A3B4C5D6-E7F8-6A7B-0C1D-2E3F4A5B6C7D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A3B4C5D6-E7F8-6A7B-0C1D-2E3F4A5B6C7D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B4C5D6E7-F8A9-7B8C-1D2E-3F4A5B6C7D8E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B4C5D6E7-F8A9-7B8C-1D2E-3F4A5B6C7D8E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B4C5D6E7-F8A9-7B8C-1D2E-3F4A5B6C7D8E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B4C5D6E7-F8A9-7B8C-1D2E-3F4A5B6C7D8E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{D4E5F6A7-B8C9-7D8E-1F2A-3B4C5D6E7F8A} = {A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}
@@ -90,9 +81,10 @@ Global
 		{B8C9D0E1-F2A3-1B2C-5D6E-7F8A9B0C1D2E} = {A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}
 		{C9D0E1F2-A3B4-2C3D-6E7F-8A9B0C1D2E3F} = {A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}
 		{D0E1F2A3-B4C5-3D4E-7F8A-9B0C1D2E3F4A} = {B2C3D4E5-F6A7-5B6C-9D0E-1F2A3B4C5D6E}
-		{E1F2A3B4-C5D6-4E5F-8A9B-0C1D2E3F4A5B} = {B2C3D4E5-F6A7-5B6C-9D0E-1F2A3B4C5D6E}
 		{F2A3B4C5-D6E7-5F6A-9B0C-1D2E3F4A5B6C} = {C3D4E5F6-A7B8-6C7D-0E1F-2A3B4C5D6E7F}
 		{A3B4C5D6-E7F8-6A7B-0C1D-2E3F4A5B6C7D} = {C3D4E5F6-A7B8-6C7D-0E1F-2A3B4C5D6E7F}
-		{B4C5D6E7-F8A9-7B8C-1D2E-3F4A5B6C7D8E} = {C3D4E5F6-A7B8-6C7D-0E1F-2A3B4C5D6E7F}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0F9CC835-5A36-4B02-8551-DCB73FCD1E29}
 	EndGlobalSection
 EndGlobal

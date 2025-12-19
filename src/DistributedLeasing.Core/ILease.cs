@@ -68,7 +68,7 @@ namespace DistributedLeasing.Core
         /// <returns>
         /// A task that represents the asynchronous renewal operation.
         /// </returns>
-        /// <exception cref="LeaseRenewalException">
+        /// <exception cref="Exceptions.LeaseException">
         /// Thrown when the lease cannot be renewed, typically because it has already expired
         /// or another instance has acquired it.
         /// </exception>

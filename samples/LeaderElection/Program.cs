@@ -1,5 +1,6 @@
 using DistributedLeasing.Azure.Blob;
 using DistributedLeasing.Core;
+using DistributedLeasing.Core.Exceptions;
 
 namespace LeaderElection;
 
@@ -119,7 +120,7 @@ class Program
                 // Sleep before next iteration
                 await Task.Delay(TimeSpan.FromSeconds(5));
             }
-            catch (Core.Exceptions.LeaseRenewalException)
+            catch (LeaseRenewalException)
             {
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine($"[{InstanceId}][LEADER] Lost leadership! Lease renewal failed.");
