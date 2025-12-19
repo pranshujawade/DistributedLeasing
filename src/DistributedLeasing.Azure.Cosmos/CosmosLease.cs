@@ -1,5 +1,6 @@
 using DistributedLeasing.Abstractions;
 using DistributedLeasing.Core;
+using DistributedLeasing.Core.Configuration;
 using DistributedLeasing.Core.Exceptions;
 using Microsoft.Azure.Cosmos;
 
@@ -28,6 +29,7 @@ internal class CosmosLease : LeaseBase
     /// <param name="duration">The duration of the lease.</param>
     /// <param name="etag">The ETag of the lease document.</param>
     /// <param name="partitionKey">The partition key value.</param>
+    /// <param name="options">Optional lease configuration including auto-renewal settings.</param>
     public CosmosLease(
         Container container,
         string leaseId,
@@ -35,8 +37,9 @@ internal class CosmosLease : LeaseBase
         DateTimeOffset acquiredAt,
         TimeSpan duration,
         string etag,
-        string partitionKey)
-        : base(leaseId, leaseName, acquiredAt, duration)
+        string partitionKey,
+        CosmosLeaseProviderOptions? options = null)
+        : base(leaseId, leaseName, acquiredAt, duration, options)
     {
         _container = container ?? throw new ArgumentNullException(nameof(container));
         _etag = etag ?? throw new ArgumentNullException(nameof(etag));

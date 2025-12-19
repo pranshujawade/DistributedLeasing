@@ -1,5 +1,6 @@
 using DistributedLeasing.Abstractions;
 using DistributedLeasing.Core;
+using DistributedLeasing.Core.Configuration;
 using DistributedLeasing.Core.Exceptions;
 using StackExchange.Redis;
 
@@ -36,7 +37,7 @@ internal class RedisLease : LeaseBase
         DateTimeOffset acquiredAt,
         TimeSpan duration,
         RedisLeaseProviderOptions options)
-        : base(leaseId, leaseName, acquiredAt, duration)
+        : base(leaseId, leaseName, acquiredAt, duration, options)
     {
         _database = database ?? throw new ArgumentNullException(nameof(database));
         _redisKey = redisKey ?? throw new ArgumentNullException(nameof(redisKey));

@@ -124,7 +124,8 @@ public class CosmosLeaseProvider : ILeaseProvider, IDisposable
                 now,
                 duration,
                 updateResponse.ETag,
-                documentId);
+                documentId,
+                _options);
         }
         catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
@@ -156,7 +157,8 @@ public class CosmosLeaseProvider : ILeaseProvider, IDisposable
                     now,
                     duration,
                     createResponse.ETag,
-                    documentId);
+                    documentId,
+                    _options);
             }
             catch (CosmosException createEx) when (createEx.StatusCode == System.Net.HttpStatusCode.Conflict)
             {

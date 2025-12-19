@@ -81,7 +81,7 @@ namespace DistributedLeasing.Azure.Blob
                     cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
-                return new BlobLease(leaseClient, leaseName, duration);
+                return new BlobLease(leaseClient, leaseName, duration, _options);
             }
             catch (RequestFailedException ex) when (ex.Status == 409)
             {

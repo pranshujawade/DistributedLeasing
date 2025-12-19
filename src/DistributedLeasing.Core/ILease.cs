@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using DistributedLeasing.Core.Events;
 
 namespace DistributedLeasing.Core
 {
@@ -58,6 +59,43 @@ namespace DistributedLeasing.Core
         /// This property should be checked before performing operations that require the lease.
         /// </value>
         bool IsAcquired { get; }
+        
+        /// <summary>
+        /// Gets the number of times this lease has been successfully renewed.
+        /// </summary>
+        /// <value>
+        /// The count of successful renewals since acquisition. This value is 0 when the lease
+        /// is first acquired and increments with each successful renewal.
+        /// </value>
+        int RenewalCount { get; }
+        
+        /// <summary>
+        /// Occurs when the lease is successfully renewed.
+        /// </summary>
+        /// <remarks>
+        /// This event is raised each time the lease is successfully renewed, whether through
+        /// automatic renewal or manual calls to <see cref="RenewAsync"/>.
+        /// </remarks>
+        event EventHandler<LeaseRenewedEventArgs>? LeaseRenewed;
+        
+        /// <summary>
+        /// Occurs when a lease renewal attempt fails.
+        /// </summary>
+        /// <remarks>
+        /// This event is raised when a renewal attempt fails. The event arguments indicate
+        /// whether another retry will be attempted or if the lease will be marked as lost.
+        /// </remarks>
+        event EventHandler<LeaseRenewalFailedEventArgs>? LeaseRenewalFailed;
+        
+        /// <summary>
+        /// Occurs when the lease is definitively lost and cannot be renewed.
+        /// </summary>
+        /// <remarks>
+        /// This event is raised when the lease is lost due to repeated renewal failures or
+        /// ownership verification failure. After this event, the lease cannot be renewed and
+        /// <see cref="IsAcquired"/> will return false.
+        /// </remarks>
+        event EventHandler<LeaseLostEventArgs>? LeaseLost;
 
         /// <summary>
         /// Renews the lease, extending its expiration time.

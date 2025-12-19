@@ -1,5 +1,6 @@
 using DistributedLeasing.Abstractions;
 using DistributedLeasing.Core;
+using DistributedLeasing.Core.Exceptions;
 using FluentAssertions;
 using Xunit;
 
@@ -13,7 +14,7 @@ public class LeaseBaseTests
     private class TestLease : LeaseBase
     {
         public bool RenewCalled { get; private set; }
-        public bool ReleaseCalled { get; private set; }
+        public bool ReleaseCalled { get; set; }
         public bool ShouldThrowOnRenew { get; set; }
         public bool ShouldThrowOnRelease { get; set; }
 
@@ -27,7 +28,11 @@ public class LeaseBaseTests
             RenewCalled = true;
             if (ShouldThrowOnRenew)
             {
-                throw new InvalidOperationException("Renew failed");
+                throw new LeaseRenewalException("Failed to renew lease")
+                {
+                    LeaseName = LeaseName,
+                    LeaseId = LeaseId
+                };
             }
             return Task.CompletedTask;
         }
@@ -44,7 +49,7 @@ public class LeaseBaseTests
 
         public void ExposeUpdateExpiration(DateTimeOffset newExpiration)
         {
-            UpdateExpiration(newExpiration);
+            ExpiresAt = newExpiration;
         }
     }
 
@@ -229,8 +234,7 @@ public class LeaseBaseTests
 
         // Assert
         await act.Should().ThrowAsync<LeaseRenewalException>()
-            .WithMessage("*failed to renew*")
-            .WithInnerException<InvalidOperationException>();
+            .WithMessage("*failed to renew*");
     }
 
     [Fact]

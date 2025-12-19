@@ -91,8 +91,11 @@ namespace DistributedLeasing.Abstractions
                     var elapsed = DateTimeOffset.UtcNow - startTime;
                     if (elapsed >= effectiveTimeout)
                     {
-                        throw new TimeoutException(
-                            $"Could not acquire lease '{leaseName}' within the specified timeout of {effectiveTimeout}.");
+                        throw new LeaseAcquisitionException(
+                            $"Could not acquire lease '{leaseName}' within the specified timeout of {effectiveTimeout}.")
+                        {
+                            LeaseName = leaseName
+                        };
                     }
                 }
 
@@ -136,8 +139,11 @@ namespace DistributedLeasing.Abstractions
                     
                     if (remaining <= TimeSpan.Zero)
                     {
-                        throw new TimeoutException(
-                            $"Could not acquire lease '{leaseName}' within the specified timeout of {effectiveTimeout}.");
+                        throw new LeaseAcquisitionException(
+                            $"Could not acquire lease '{leaseName}' within the specified timeout of {effectiveTimeout}.")
+                        {
+                            LeaseName = leaseName
+                        };
                     }
                     
                     delayDuration = remaining < retryInterval ? remaining : retryInterval;
