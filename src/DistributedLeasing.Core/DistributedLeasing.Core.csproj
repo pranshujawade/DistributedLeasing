@@ -13,4 +13,8 @@
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../DistributedLeasing.Authentication/DistributedLeasing.Authentication.csproj" />
+  </ItemGroup>
+
 </Project>
