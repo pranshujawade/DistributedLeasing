@@ -111,6 +111,7 @@ echo "Publishing packages..."
 PUBLISH_ORDER=(
     "DistributedLeasing.Core"
     "DistributedLeasing.Abstractions"
+    "DistributedLeasing.Authentication"
     "DistributedLeasing.Azure.Blob"
     "DistributedLeasing.Azure.Cosmos"
     "DistributedLeasing.Azure.Redis"

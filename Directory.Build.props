@@ -19,7 +19,7 @@
     <RepositoryUrl>https://github.com/pranshujawade/DistributedLeasing.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>icon.svg</PackageIcon>
+    <!-- <PackageIcon>icon.svg</PackageIcon> -->
     <Copyright>Copyright © 2024 DistributedLeasing Contributors</Copyright>
     
     <!-- Source Link Configuration for Debugging Support -->
@@ -32,10 +32,10 @@
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true' or '$(TF_BUILD)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
   
-  <!-- Include README.md and icon.svg in all packages -->
+  <!-- Include README.md in all packages -->
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Condition="Exists('$(MSBuildThisFileDirectory)README.md')" />
-    <None Include="$(MSBuildThisFileDirectory)icon.svg" Pack="true" PackagePath="\" Condition="Exists('$(MSBuildThisFileDirectory)icon.svg')" />
+    <!-- <None Include="$(MSBuildThisFileDirectory)icon.svg" Pack="true" PackagePath="\" Condition="Exists('$(MSBuildThisFileDirectory)icon.svg')" /> -->
   </ItemGroup>
 
 </Project>

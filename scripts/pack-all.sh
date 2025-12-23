@@ -75,6 +75,7 @@ echo "Packing NuGet packages..."
 PROJECTS=(
     "src/DistributedLeasing.Core/DistributedLeasing.Core.csproj"
     "src/DistributedLeasing.Abstractions/DistributedLeasing.Abstractions.csproj"
+    "src/DistributedLeasing.Authentication/DistributedLeasing.Authentication.csproj"
     "src/DistributedLeasing.Azure.Blob/DistributedLeasing.Azure.Blob.csproj"
     "src/DistributedLeasing.Azure.Cosmos/DistributedLeasing.Azure.Cosmos.csproj"
     "src/DistributedLeasing.Azure.Redis/DistributedLeasing.Azure.Redis.csproj"
