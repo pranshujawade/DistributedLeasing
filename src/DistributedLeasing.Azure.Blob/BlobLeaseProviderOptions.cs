@@ -13,10 +13,27 @@ namespace DistributedLeasing.Azure.Blob
     /// Azure Blob Storage supports lease durations between 15 and 60 seconds, or infinite leases.
     /// </para>
     /// <para>
-    /// For security, use <see cref="UseManagedIdentity"/> set to <c>true</c> and provide
-    /// the <see cref="StorageAccountUri"/>. Alternatively, provide a <see cref="TokenCredential"/>
+    /// For security, use <see cref="LeaseOptions.UseManagedIdentity"/> set to <c>true</c> and provide
+    /// the <see cref="Endpoint"/>. Alternatively, provide a <see cref="LeaseOptions.Credential"/>
     /// for service principal or other credential-based authentication.
     /// </para>
+    /// <para>
+    /// <strong>AppSettings.json Example:</strong>
+    /// </para>
+    /// <code>
+    /// {
+    ///   "Leasing": {
+    ///     "Endpoint": "https://mystorageaccount.blob.core.windows.net",
+    ///     "ContainerName": "leases",
+    ///     "KeyPrefix": "myapp-",
+    ///     "UseManagedIdentity": true,
+    ///     "CreateContainerIfNotExists": true,
+    ///     "DefaultLeaseDuration": "00:00:30",
+    ///     "AutoRenew": true,
+    ///     "AutoRenewInterval": "00:00:20"
+    ///   }
+    /// }
+    /// </code>
     /// </remarks>
     public class BlobLeaseProviderOptions : LeaseOptions
     {
@@ -33,6 +50,22 @@ namespace DistributedLeasing.Azure.Blob
         /// This is required when using managed identity or token credential authentication.
         /// </remarks>
         public Uri? StorageAccountUri { get; set; }
+        
+        /// <summary>
+        /// Gets or sets the service endpoint URI (standardized alias for <see cref="StorageAccountUri"/>).
+        /// </summary>
+        /// <value>
+        /// The service endpoint URI. This is an alias for <see cref="StorageAccountUri"/> for consistency across providers.
+        /// </value>
+        /// <remarks>
+        /// This property provides a consistent naming convention across all providers.
+        /// Setting this property also sets <see cref="StorageAccountUri"/>.
+        /// </remarks>
+        public Uri? Endpoint
+        {
+            get => StorageAccountUri;
+            set => StorageAccountUri = value;
+        }
 
         /// <summary>
         /// Gets or sets the connection string for the storage account.
@@ -43,7 +76,7 @@ namespace DistributedLeasing.Azure.Blob
         /// <remarks>
         /// <para>
         /// Use this for development or when managed identity is not available.
-        /// For production, prefer <see cref="UseManagedIdentity"/> or <see cref="Credential"/>.
+        /// For production, prefer managed identity or explicit credentials.
         /// </para>
         /// <para>
         /// If both connection string and credential are provided, the credential takes precedence.
@@ -58,42 +91,6 @@ namespace DistributedLeasing.Azure.Blob
         /// The container name. Default is "leases".
         /// </value>
         public string ContainerName { get; set; } = "leases";
-
-        /// <summary>
-        /// Gets or sets a value indicating whether to use managed identity for authentication.
-        /// </summary>
-        /// <value>
-        /// <c>true</c> to use DefaultAzureCredential for managed identity authentication;
-        /// otherwise, <c>false</c>. Default is <c>false</c>.
-        /// </value>
-        /// <remarks>
-        /// <para>
-        /// When set to <c>true</c>, the provider will use DefaultAzureCredential which supports:
-        /// <list type="bullet">
-        /// <item>Environment variables (service principal)</item>
-        /// <item>Workload identity (AKS)</item>
-        /// <item>Managed identity (Azure VMs, App Service, Functions)</item>
-        /// <item>Azure CLI (local development)</item>
-        /// <item>Visual Studio / VS Code (local development)</item>
-        /// </list>
-        /// </para>
-        /// <para>
-        /// Requires <see cref="StorageAccountUri"/> to be set.
-        /// </para>
-        /// </remarks>
-        public bool UseManagedIdentity { get; set; }
-
-        /// <summary>
-        /// Gets or sets the Azure credential to use for authentication.
-        /// </summary>
-        /// <value>
-        /// A <see cref="TokenCredential"/> for authentication, or <c>null</c> to use other methods.
-        /// </value>
-        /// <remarks>
-        /// Use this to provide a specific credential (e.g., ClientSecretCredential, ManagedIdentityCredential).
-        /// If set, this takes precedence over <see cref="UseManagedIdentity"/> and <see cref="ConnectionString"/>.
-        /// </remarks>
-        public TokenCredential? Credential { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether to create the container if it does not exist.
@@ -118,6 +115,22 @@ namespace DistributedLeasing.Azure.Blob
         /// This allows for organizing lease blobs within the container.
         /// </remarks>
         public string BlobPrefix { get; set; } = "lease-";
+        
+        /// <summary>
+        /// Gets or sets the key prefix for lease names (standardized alias for <see cref="BlobPrefix"/>).
+        /// </summary>
+        /// <value>
+        /// The key prefix. This is an alias for <see cref="BlobPrefix"/> for consistency across providers.
+        /// </value>
+        /// <remarks>
+        /// This property provides a consistent naming convention across all providers.
+        /// Setting this property also sets <see cref="BlobPrefix"/>.
+        /// </remarks>
+        public string KeyPrefix
+        {
+            get => BlobPrefix;
+            set => BlobPrefix = value;
+        }
 
         /// <summary>
         /// Gets the minimum allowed lease duration for Azure Blob Storage.
@@ -145,19 +158,16 @@ namespace DistributedLeasing.Azure.Blob
         {
             base.Validate();
 
-            // Validate authentication configuration
-            if (Credential == null && !UseManagedIdentity && string.IsNullOrEmpty(ConnectionString))
-            {
-                throw new InvalidOperationException(
-                    "At least one authentication method must be configured: " +
-                    "UseManagedIdentity, Credential, or ConnectionString.");
-            }
+            // Validate authentication configuration using base class helper
+            ValidateAuthenticationConfigured(
+                hasConnectionString: !string.IsNullOrEmpty(ConnectionString),
+                hasAlternativeAuth: false,
+                providerName: "Azure Blob Storage");
 
-            if ((Credential != null || UseManagedIdentity) && StorageAccountUri == null)
-            {
-                throw new InvalidOperationException(
-                    "StorageAccountUri is required when using Credential or UseManagedIdentity.");
-            }
+            // Validate endpoint for credential-based authentication using base class helper
+            ValidateEndpointForCredential(
+                hasEndpoint: StorageAccountUri != null,
+                endpointPropertyName: nameof(StorageAccountUri));
 
             if (string.IsNullOrWhiteSpace(ContainerName))
             {

@@ -55,56 +55,6 @@ namespace DistributedLeasing.Abstractions
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Renews an existing lease, extending its expiration time.
-        /// </summary>
-        /// <param name="lease">
-        /// The lease to renew.
-        /// </param>
-        /// <param name="cancellationToken">
-        /// A cancellation token to cancel the operation.
-        /// </param>
-        /// <returns>
-        /// A task that represents the asynchronous renewal operation.
-        /// </returns>
-        /// <remarks>
-        /// Implementations must:
-        /// <list type="bullet">
-        /// <item>Verify ownership of the lease (using lease ID)</item>
-        /// <item>Extend the expiration time atomically</item>
-        /// <item>Throw <see cref="Core.Exceptions.LeaseRenewalException"/> if renewal fails</item>
-        /// <item>Handle race conditions where the lease has expired</item>
-        /// </list>
-        /// </remarks>
-        Task RenewLeaseAsync(
-            ILease lease,
-            CancellationToken cancellationToken = default);
-
-        /// <summary>
-        /// Releases a lease, making it immediately available for other instances.
-        /// </summary>
-        /// <param name="lease">
-        /// The lease to release.
-        /// </param>
-        /// <param name="cancellationToken">
-        /// A cancellation token to cancel the operation.
-        /// </param>
-        /// <returns>
-        /// A task that represents the asynchronous release operation.
-        /// </returns>
-        /// <remarks>
-        /// Implementations must:
-        /// <list type="bullet">
-        /// <item>Verify ownership of the lease before releasing</item>
-        /// <item>Atomically release the lease</item>
-        /// <item>Be idempotent (releasing an already-released lease should not error)</item>
-        /// <item>Not throw exceptions for normal release scenarios</item>
-        /// </list>
-        /// </remarks>
-        Task ReleaseLeaseAsync(
-            ILease lease,
-            CancellationToken cancellationToken = default);
-
-        /// <summary>
         /// Forcibly breaks a lease, regardless of ownership.
         /// </summary>
         /// <param name="leaseName">

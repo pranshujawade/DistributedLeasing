@@ -7,8 +7,27 @@ namespace DistributedLeasing.Azure.Redis;
 /// Configuration options for the Redis lease provider.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This class extends <see cref="LeaseOptions"/> with Redis-specific settings.
 /// Supports authentication via connection string, managed identity, or explicit credentials.
+/// </para>
+/// <para>
+/// <strong>AppSettings.json Example:</strong>
+/// </para>
+/// <code>
+/// {
+///   "Leasing": {
+///     "Endpoint": "mycache.redis.cache.windows.net:6380",
+///     "KeyPrefix": "myapp:",
+///     "UseManagedIdentity": true,
+///     "UseSsl": true,
+///     "Database": 0,
+///     "DefaultLeaseDuration": "00:00:30",
+///     "AutoRenew": true,
+///     "AutoRenewInterval": "00:00:20"
+///   }
+/// }
+/// </code>
 /// </remarks>
 public class RedisLeaseProviderOptions : LeaseOptions
 {
@@ -31,6 +50,46 @@ public class RedisLeaseProviderOptions : LeaseOptions
     public string? HostName { get; set; }
 
     /// <summary>
+    /// Gets or sets the service endpoint (standardized property for host and port).
+    /// </summary>
+    /// <value>
+    /// The service endpoint in format "hostname:port". This provides consistency across providers.
+    /// </value>
+    /// <remarks>
+    /// <para>
+    /// This property provides a consistent naming convention across all providers.
+    /// When setting, you can specify just the hostname or hostname:port format.
+    /// </para>
+    /// <para>
+    /// Examples:
+    /// <list type="bullet">
+    /// <item>"mycache.redis.cache.windows.net:6380"</item>
+    /// <item>"mycache.redis.cache.windows.net" (uses default port)</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    public string? Endpoint
+    {
+        get => string.IsNullOrWhiteSpace(HostName) ? null : $"{HostName}:{Port}";
+        set
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                var parts = value!.Split(':');
+                HostName = parts[0];
+                if (parts.Length > 1 && int.TryParse(parts[1], out var port))
+                {
+                    Port = port;
+                }
+            }
+            else
+            {
+                HostName = null;
+            }
+        }
+    }
+
+    /// <summary>
     /// Gets or sets the Redis port number.
     /// </summary>
     /// <remarks>
@@ -45,24 +104,6 @@ public class RedisLeaseProviderOptions : LeaseOptions
     /// Should be true for Azure Redis. May be false for local development.
     /// </remarks>
     public bool UseSsl { get; set; } = true;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether to use Azure Managed Identity for authentication.
-    /// </summary>
-    /// <remarks>
-    /// When true, uses Azure AD authentication with DefaultAzureCredential.
-    /// Requires HostName to be set and Azure Cache for Redis with AAD enabled.
-    /// </remarks>
-    public bool UseManagedIdentity { get; set; }
-
-    /// <summary>
-    /// Gets or sets an explicit TokenCredential for authentication.
-    /// </summary>
-    /// <remarks>
-    /// Allows custom credential implementations (e.g., WorkloadIdentityCredential).
-    /// Takes precedence over UseManagedIdentity if set.
-    /// </remarks>
-    public TokenCredential? Credential { get; set; }
 
     /// <summary>
     /// Gets or sets the access key for authentication.
@@ -131,22 +172,16 @@ public class RedisLeaseProviderOptions : LeaseOptions
     {
         base.Validate();
 
-        // Validate authentication configuration
-        if (Credential == null && 
-            !UseManagedIdentity && 
-            string.IsNullOrWhiteSpace(ConnectionString) && 
-            string.IsNullOrWhiteSpace(AccessKey))
-        {
-            throw new InvalidOperationException(
-                "No authentication method configured. Set Credential, UseManagedIdentity=true, ConnectionString, or AccessKey.");
-        }
+        // Validate authentication configuration using base class helper
+        ValidateAuthenticationConfigured(
+            hasConnectionString: !string.IsNullOrWhiteSpace(ConnectionString),
+            hasAlternativeAuth: !string.IsNullOrWhiteSpace(AccessKey),
+            providerName: "Azure Redis");
 
-        // Validate hostname for managed identity
-        if ((Credential != null || UseManagedIdentity) && string.IsNullOrWhiteSpace(HostName))
-        {
-            throw new InvalidOperationException(
-                "HostName is required when using Credential or UseManagedIdentity.");
-        }
+        // Validate hostname for credential-based authentication using base class helper
+        ValidateEndpointForCredential(
+            hasEndpoint: !string.IsNullOrWhiteSpace(HostName),
+            endpointPropertyName: nameof(HostName));
 
         // Validate key prefix
         if (string.IsNullOrWhiteSpace(KeyPrefix))

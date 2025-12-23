@@ -118,26 +118,6 @@ namespace DistributedLeasing.Azure.Blob
         }
 
         /// <inheritdoc/>
-        public async Task RenewLeaseAsync(ILease lease, CancellationToken cancellationToken = default)
-        {
-            if (lease == null)
-                throw new ArgumentNullException(nameof(lease));
-
-            // The BlobLease class handles renewal internally
-            await lease.RenewAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        /// <inheritdoc/>
-        public async Task ReleaseLeaseAsync(ILease lease, CancellationToken cancellationToken = default)
-        {
-            if (lease == null)
-                throw new ArgumentNullException(nameof(lease));
-
-            // The BlobLease class handles release internally
-            await lease.ReleaseAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        /// <inheritdoc/>
         public async Task BreakLeaseAsync(string leaseName, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(leaseName))

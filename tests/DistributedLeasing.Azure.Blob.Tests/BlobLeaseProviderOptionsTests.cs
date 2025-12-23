@@ -288,7 +288,7 @@ public class BlobLeaseProviderOptionsTests
         var options = new BlobLeaseProviderOptions
         {
             ConnectionString = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdGtleQ==;EndpointSuffix=core.windows.net",
-            DefaultRetryInterval = TimeSpan.FromSeconds(-1)
+            AutoRenewRetryInterval = TimeSpan.FromSeconds(-1)
         };
 
         // Act
@@ -296,7 +296,7 @@ public class BlobLeaseProviderOptionsTests
 
         // Assert
         act.Should().Throw<ArgumentOutOfRangeException>()
-            .WithMessage("*DefaultRetryInterval*");
+            .WithMessage("*AutoRenewRetryInterval*");
     }
 
     [Fact]

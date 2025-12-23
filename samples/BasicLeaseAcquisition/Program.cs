@@ -10,6 +10,8 @@ namespace BasicLeaseAcquisition;
 /// <list type="bullet">
 /// <item>Configure a blob lease manager</item>
 /// <item>Acquire a distributed lease</item>
+/// <item>Use automatic lease renewal</item>
+/// <item>Handle lease events</item>
 /// <item>Perform exclusive operations</item>
 /// <item>Properly release the lease</item>
 /// </list>
@@ -45,7 +47,12 @@ class Program
             ContainerName = "leases",
             CreateContainerIfNotExists = true,
             DefaultLeaseDuration = TimeSpan.FromSeconds(30),
-            AutoRenew = false // Manual renewal for demonstration
+            
+            // Enable automatic renewal (recommended for production)
+            AutoRenew = true,
+            AutoRenewInterval = TimeSpan.FromSeconds(20), // Renew at 2/3 of lease duration
+            AutoRenewMaxRetries = 3,
+            AutoRenewRetryInterval = TimeSpan.FromSeconds(2)
         };
 
         // Create the lease manager
@@ -65,24 +72,41 @@ class Program
                 Console.WriteLine($"  Lease ID: {lease.LeaseId}");
                 Console.WriteLine($"  Acquired At: {lease.AcquiredAt:O}");
                 Console.WriteLine($"  Expires At: {lease.ExpiresAt:O}");
-                Console.WriteLine($"  Is Acquired: {lease.IsAcquired}\n");
+                Console.WriteLine($"  Is Acquired: {lease.IsAcquired}");
+                Console.WriteLine($"  Auto-Renew Enabled: {options.AutoRenew}\n");
+
+                // Subscribe to lease events
+                lease.LeaseRenewed += (sender, e) =>
+                {
+                    Console.WriteLine($"[EVENT] Lease renewed at {e.Timestamp:HH:mm:ss}");
+                    Console.WriteLine($"        New expiration: {e.NewExpiration:HH:mm:ss}");
+                };
+
+                lease.LeaseRenewalFailed += (sender, e) =>
+                {
+                    Console.WriteLine($"[EVENT] Lease renewal failed (Attempt {e.AttemptNumber})");
+                    Console.WriteLine($"        Reason: {e.Exception.Message}");
+                    Console.WriteLine($"        Will retry: {e.WillRetry}");
+                };
+
+                lease.LeaseLost += (sender, e) =>
+                {
+                    Console.WriteLine($"[EVENT] Lease lost at {e.Timestamp:HH:mm:ss}");
+                    Console.WriteLine($"        Reason: {e.Reason}");
+                };
 
                 // Perform exclusive operations
                 Console.WriteLine("Performing exclusive operation...");
+                Console.WriteLine("(Notice that the lease is automatically renewed in the background)\n");
                 await SimulateWork();
 
-                // Demonstrate manual renewal
-                Console.WriteLine("\nRenewing lease...");
-                await lease.RenewAsync();
-                Console.WriteLine($"✓ Lease renewed. New expiration: {lease.ExpiresAt:O}");
-
-                // More work
-                Console.WriteLine("\nPerforming more exclusive work...");
-                await SimulateWork();
+                // The lease has been automatically renewed during the work
+                Console.WriteLine($"\n✓ Work completed. Current expiration: {lease.ExpiresAt:HH:mm:ss}");
+                Console.WriteLine($"  Renewal count: {lease.RenewalCount}");
 
                 Console.WriteLine("\nReleasing lease explicitly...");
                 await lease.ReleaseAsync();
-                Console.WriteLine("✓ Lease released successfully");
+                Console.WriteLine("✓ Lease released successfully (auto-renewal stopped)");
             }
             else
             {
@@ -109,10 +133,10 @@ class Program
     /// </summary>
     static async Task SimulateWork()
     {
-        for (int i = 1; i <= 3; i++)
+        for (int i = 1; i <= 5; i++)
         {
-            Console.WriteLine($"  Work step {i}/3...");
-            await Task.Delay(2000); // Simulate 2 seconds of work
+            Console.WriteLine($"  Work step {i}/5...");
+            await Task.Delay(5000); // Simulate 5 seconds of work (total 25 seconds)
         }
         Console.WriteLine("  Work complete!");
     }

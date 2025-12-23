@@ -1,4 +1,5 @@
 using System;
+using Azure.Core;
 
 namespace DistributedLeasing.Core.Configuration
 {
@@ -18,6 +19,31 @@ namespace DistributedLeasing.Core.Configuration
         private TimeSpan _autoRenewRetryInterval = TimeSpan.FromSeconds(5);
         private int _autoRenewMaxRetries = 3;
         private double _autoRenewSafetyThreshold = 0.9;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to use Azure Managed Identity for authentication.
+        /// </summary>
+        /// <value>
+        /// <c>true</c> to use DefaultAzureCredential for managed identity authentication;
+        /// otherwise, <c>false</c>. Default is <c>false</c>.
+        /// </value>
+        /// <remarks>
+        /// When set to <c>true</c>, the provider will use DefaultAzureCredential which supports
+        /// environment variables, workload identity, managed identity, Azure CLI, and Visual Studio authentication.
+        /// </remarks>
+        public bool UseManagedIdentity { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Azure credential to use for authentication.
+        /// </summary>
+        /// <value>
+        /// A <see cref="TokenCredential"/> for authentication, or <c>null</c> to use other methods.
+        /// </value>
+        /// <remarks>
+        /// Use this to provide a specific credential (e.g., ClientSecretCredential, ManagedIdentityCredential).
+        /// If set, this takes precedence over <see cref="UseManagedIdentity"/>.
+        /// </remarks>
+        public TokenCredential? Credential { get; set; }
 
         /// <summary>
         /// Gets or sets the default duration for acquired leases.
@@ -231,7 +257,7 @@ namespace DistributedLeasing.Core.Configuration
             }
         }
 
-        /// <summary>
+       /// <summary>
         /// Validates the configuration options.
         /// </summary>
         /// <exception cref="InvalidOperationException">
@@ -268,6 +294,38 @@ namespace DistributedLeasing.Core.Configuration
                         $"AutoRenewRetryInterval ({AutoRenewRetryInterval}) is too large for the buffer time ({remainingBuffer}) between renewal and expiration. " +
                         $"Consider reducing AutoRenewRetryInterval or increasing the buffer by reducing AutoRenewInterval.");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Validates that at least one authentication method is configured.
+        /// </summary>
+        /// <param name="hasConnectionString">Whether a connection string is provided.</param>
+        /// <param name="hasAlternativeAuth">Whether an alternative authentication method (like access key) is provided.</param>
+        /// <param name="providerName">The name of the provider for error messages.</param>
+        /// <exception cref="InvalidOperationException">Thrown when no authentication method is configured.</exception>
+        protected void ValidateAuthenticationConfigured(bool hasConnectionString, bool hasAlternativeAuth, string providerName)
+        {
+            if (Credential == null && !UseManagedIdentity && !hasConnectionString && !hasAlternativeAuth)
+            {
+                throw new InvalidOperationException(
+                    $"No authentication method configured for {providerName}. " +
+                    "Set Credential, UseManagedIdentity=true, ConnectionString, or an alternative authentication method.");
+            }
+        }
+
+        /// <summary>
+        /// Validates that an endpoint is provided when using credential-based authentication.
+        /// </summary>
+        /// <param name="hasEndpoint">Whether an endpoint is provided.</param>
+        /// <param name="endpointPropertyName">The name of the endpoint property for error messages.</param>
+        /// <exception cref="InvalidOperationException">Thrown when endpoint is missing for credential-based authentication.</exception>
+        protected void ValidateEndpointForCredential(bool hasEndpoint, string endpointPropertyName = "Endpoint")
+        {
+            if ((Credential != null || UseManagedIdentity) && !hasEndpoint)
+            {
+                throw new InvalidOperationException(
+                    $"{endpointPropertyName} is required when using Credential or UseManagedIdentity.");
             }
         }
     }

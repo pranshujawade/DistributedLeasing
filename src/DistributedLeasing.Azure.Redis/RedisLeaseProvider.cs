@@ -124,56 +124,6 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
     }
 
     /// <inheritdoc/>
-    public async Task RenewLeaseAsync(ILease lease, CancellationToken cancellationToken = default)
-    {
-        if (lease == null)
-        {
-            throw new ArgumentNullException(nameof(lease));
-        }
-
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(GetType().FullName);
-        }
-
-        if (lease is RedisLease redisLease)
-        {
-            await redisLease.RenewAsync(cancellationToken);
-        }
-        else
-        {
-            throw new ArgumentException(
-                $"Lease must be of type {nameof(RedisLease)}.",
-                nameof(lease));
-        }
-    }
-
-    /// <inheritdoc/>
-    public async Task ReleaseLeaseAsync(ILease lease, CancellationToken cancellationToken = default)
-    {
-        if (lease == null)
-        {
-            throw new ArgumentNullException(nameof(lease));
-        }
-
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(GetType().FullName);
-        }
-
-        if (lease is RedisLease redisLease)
-        {
-            await redisLease.ReleaseAsync(cancellationToken);
-        }
-        else
-        {
-            throw new ArgumentException(
-                $"Lease must be of type {nameof(RedisLease)}.",
-                nameof(lease));
-        }
-    }
-
-    /// <inheritdoc/>
     public async Task BreakLeaseAsync(string leaseName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(leaseName))

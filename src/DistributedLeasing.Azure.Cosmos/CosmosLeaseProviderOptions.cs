@@ -7,8 +7,28 @@ namespace DistributedLeasing.Azure.Cosmos;
 /// Configuration options for the Cosmos DB lease provider.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This class extends <see cref="LeaseOptions"/> with Cosmos DB-specific settings.
 /// Supports authentication via connection string, managed identity, or explicit credentials.
+/// </para>
+/// <para>
+/// <strong>AppSettings.json Example:</strong>
+/// </para>
+/// <code>
+/// {
+///   "Leasing": {
+///     "Endpoint": "https://myaccount.documents.azure.com:443/",
+///     "DatabaseName": "DistributedLeasing",
+///     "ContainerName": "Leases",
+///     "UseManagedIdentity": true,
+///     "CreateDatabaseIfNotExists": true,
+///     "CreateContainerIfNotExists": true,
+///     "DefaultLeaseDuration": "00:01:00",
+///     "AutoRenew": true,
+///     "AutoRenewInterval": "00:00:40"
+///   }
+/// }
+/// </code>
 /// </remarks>
 public class CosmosLeaseProviderOptions : LeaseOptions
 {
@@ -20,6 +40,22 @@ public class CosmosLeaseProviderOptions : LeaseOptions
     /// Example: https://myaccount.documents.azure.com:443/
     /// </remarks>
     public Uri? AccountEndpoint { get; set; }
+
+    /// <summary>
+    /// Gets or sets the service endpoint URI (standardized alias for <see cref="AccountEndpoint"/>).
+    /// </summary>
+    /// <value>
+    /// The service endpoint URI. This is an alias for <see cref="AccountEndpoint"/> for consistency across providers.
+    /// </value>
+    /// <remarks>
+    /// This property provides a consistent naming convention across all providers.
+    /// Setting this property also sets <see cref="AccountEndpoint"/>.
+    /// </remarks>
+    public Uri? Endpoint
+    {
+        get => AccountEndpoint;
+        set => AccountEndpoint = value;
+    }
 
     /// <summary>
     /// Gets or sets the Cosmos DB connection string.
@@ -36,25 +72,6 @@ public class CosmosLeaseProviderOptions : LeaseOptions
     /// Use only for local development. In production, prefer managed identity.
     /// </remarks>
     public string? AccountKey { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether to use Azure Managed Identity for authentication.
-    /// </summary>
-    /// <remarks>
-    /// When true, uses DefaultAzureCredential for authentication.
-    /// Requires AccountEndpoint to be set.
-    /// </remarks>
-    public bool UseManagedIdentity { get; set; }
-
-    /// <summary>
-    /// Gets or sets an explicit TokenCredential for authentication.
-    /// </summary>
-    /// <remarks>
-    /// Allows custom credential implementations (e.g., WorkloadIdentityCredential).
-    /// Takes precedence over UseManagedIdentity if set.
-    /// Requires AccountEndpoint to be set.
-    /// </remarks>
-    public TokenCredential? Credential { get; set; }
 
     /// <summary>
     /// Gets or sets the name of the database containing the lease collection.
@@ -121,19 +138,16 @@ public class CosmosLeaseProviderOptions : LeaseOptions
     {
         base.Validate();
 
-        // Validate authentication configuration
-        if (Credential == null && !UseManagedIdentity && string.IsNullOrWhiteSpace(ConnectionString) && string.IsNullOrWhiteSpace(AccountKey))
-        {
-            throw new InvalidOperationException(
-                "No authentication method configured. Set Credential, UseManagedIdentity=true, ConnectionString, or AccountKey.");
-        }
+        // Validate authentication configuration using base class helper
+        ValidateAuthenticationConfigured(
+            hasConnectionString: !string.IsNullOrWhiteSpace(ConnectionString),
+            hasAlternativeAuth: !string.IsNullOrWhiteSpace(AccountKey),
+            providerName: "Azure Cosmos DB");
 
-        // Validate account endpoint for credential-based auth
-        if ((Credential != null || UseManagedIdentity || !string.IsNullOrWhiteSpace(AccountKey)) && AccountEndpoint == null)
-        {
-            throw new InvalidOperationException(
-                "AccountEndpoint is required when using Credential, UseManagedIdentity, or AccountKey.");
-        }
+        // Validate endpoint for credential-based authentication using base class helper
+        ValidateEndpointForCredential(
+            hasEndpoint: AccountEndpoint != null,
+            endpointPropertyName: nameof(AccountEndpoint));
 
         // Validate database name
         if (string.IsNullOrWhiteSpace(DatabaseName))

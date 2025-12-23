@@ -290,7 +290,7 @@ namespace DistributedLeasing.Abstractions
         /// <summary>
         /// Stops the background auto-renewal task.
         /// </summary>
-        private void StopAutoRenewal()
+        private void StopAutoRenewal(bool waitForCompletion = true)
         {
             if (_renewalCancellationTokenSource != null)
             {
@@ -300,7 +300,8 @@ namespace DistributedLeasing.Abstractions
             }
             
             // Wait for renewal task to complete (with timeout)
-            if (_renewalTask != null)
+            // Skip waiting if called from within the renewal task itself to avoid deadlock
+            if (waitForCompletion && _renewalTask != null)
             {
                 try
                 {
@@ -360,8 +361,18 @@ namespace DistributedLeasing.Abstractions
                 }
                 catch (Exception ex)
                 {
-                    // Unexpected error in renewal loop
-                    OnLeaseLost($"Unexpected error in auto-renewal loop: {ex.Message}");
+                    // Only raise LeaseLost if it hasn't been raised already
+                    // (It may have been raised by AttemptRenewalWithRetryAsync)
+                    bool alreadyDisposed;
+                    lock (_lock)
+                    {
+                        alreadyDisposed = _isDisposed;
+                    }
+                    
+                    if (!alreadyDisposed)
+                    {
+                        OnLeaseLost($"Unexpected error in auto-renewal loop: {ex.Message}");
+                    }
                     break;
                 }
             }
@@ -391,39 +402,40 @@ namespace DistributedLeasing.Abstractions
                     OnLeaseLost(ex.Message);
                     throw;
                 }
-                catch (Exception ex) when (attempt <= maxRetries)
-                {
-                    // Transient failure, will retry
-                    _renewalFailureCount++;
-                    
-                    var willRetry = attempt < maxRetries + 1;
-                    OnLeaseRenewalFailed(attempt, ex, willRetry);
-                    
-                    if (willRetry)
-                    {
-                        // Exponential backoff
-                        var delay = TimeSpan.FromMilliseconds(retryInterval.TotalMilliseconds * Math.Pow(2, attempt - 1));
-                        
-                        // Ensure we don't exceed safety threshold with retry
-                        var timeSinceAcquisition = DateTimeOffset.UtcNow - AcquiredAt;
-                        var safetyThreshold = TimeSpan.FromMilliseconds(_leaseDuration.TotalMilliseconds * _options.AutoRenewSafetyThreshold);
-                        var remainingTime = safetyThreshold - timeSinceAcquisition;
-                        
-                        if (remainingTime <= TimeSpan.Zero)
-                        {
-                            OnLeaseLost("No time remaining for retry before safety threshold");
-                            throw;
-                        }
-                        
-                        delay = delay > remainingTime ? remainingTime : delay;
-                        await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-                    }
-                }
                 catch (Exception ex)
                 {
-                    // Final attempt failed, lease is lost
-                    OnLeaseLost($"Renewal failed after {maxRetries} retries: {ex.Message}");
-                    throw;
+                    // Transient failure
+                    _renewalFailureCount++;
+                    
+                    var isLastAttempt = attempt >= maxRetries + 1;
+                    var willRetry = !isLastAttempt;
+                    
+                    // Always raise LeaseRenewalFailed for every failed attempt
+                    OnLeaseRenewalFailed(attempt, ex, willRetry);
+                    
+                    if (isLastAttempt)
+                    {
+                        // Final attempt failed, lease is lost
+                        OnLeaseLost($"Renewal failed after {maxRetries} retries: {ex.Message}");
+                        throw;
+                    }
+                    
+                    // Not the last attempt, retry with exponential backoff
+                    var delay = TimeSpan.FromMilliseconds(retryInterval.TotalMilliseconds * Math.Pow(2, attempt - 1));
+                    
+                    // Ensure we don't exceed safety threshold with retry
+                    var timeSinceAcquisition = DateTimeOffset.UtcNow - AcquiredAt;
+                    var safetyThreshold = TimeSpan.FromMilliseconds(_leaseDuration.TotalMilliseconds * _options.AutoRenewSafetyThreshold);
+                    var remainingTime = safetyThreshold - timeSinceAcquisition;
+                    
+                    if (remainingTime <= TimeSpan.Zero)
+                    {
+                        OnLeaseLost("No time remaining for retry before safety threshold");
+                        throw;
+                    }
+                    
+                    delay = delay > remainingTime ? remainingTime : delay;
+                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                 }
             }
         }
@@ -511,8 +523,8 @@ namespace DistributedLeasing.Abstractions
                 _isDisposed = true;
             }
             
-            // Stop auto-renewal
-            StopAutoRenewal();
+            // Stop auto-renewal without waiting to avoid deadlock when called from renewal task
+            StopAutoRenewal(waitForCompletion: false);
             
             try
             {

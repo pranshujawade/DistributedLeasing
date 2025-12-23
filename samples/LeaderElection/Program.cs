@@ -12,6 +12,9 @@ namespace LeaderElection;
 /// The instance that acquires the lease becomes the leader and performs leader-only operations.
 /// Other instances become followers and continuously attempt to acquire leadership.
 /// 
+/// This sample demonstrates automatic lease renewal - the leader's lease is automatically renewed
+/// in the background, eliminating the need for manual renewal logic.
+/// 
 /// To simulate multiple instances, run this program in multiple terminals simultaneously.
 /// </remarks>
 class Program
@@ -47,7 +50,12 @@ class Program
             ContainerName = "leader-election",
             CreateContainerIfNotExists = true,
             DefaultLeaseDuration = TimeSpan.FromSeconds(30),
-            AutoRenew = false
+            
+            // Enable automatic renewal for leader lease
+            AutoRenew = true,
+            AutoRenewInterval = TimeSpan.FromSeconds(20), // Renew at 2/3 of lease duration
+            AutoRenewMaxRetries = 3,
+            AutoRenewRetryInterval = TimeSpan.FromSeconds(2)
         };
 
         var leaseManager = new BlobLeaseManager(options);
@@ -92,11 +100,34 @@ class Program
     {
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"[{InstanceId}] *** I AM THE LEADER ***");
+        Console.WriteLine($"[{InstanceId}] Auto-renewal is enabled - lease will be renewed automatically");
         Console.ResetColor();
 
-        var renewalInterval = TimeSpan.FromSeconds(10); // Renew every 10 seconds (lease is 30s)
-        var lastRenewal = DateTimeOffset.UtcNow;
         var iteration = 0;
+        
+        // Subscribe to lease events
+        lease.LeaseRenewed += (sender, e) =>
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGreen;
+            Console.WriteLine($"[{InstanceId}][LEADER] Lease auto-renewed at {e.Timestamp:HH:mm:ss} (Expiration: {e.NewExpiration:HH:mm:ss})");
+            Console.ResetColor();
+        };
+
+        lease.LeaseRenewalFailed += (sender, e) =>
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"[{InstanceId}][LEADER] Renewal failed (Attempt {e.AttemptNumber}): {e.Exception.Message}");
+            Console.WriteLine($"[{InstanceId}][LEADER] Will retry: {e.WillRetry}");
+            Console.ResetColor();
+        };
+
+        lease.LeaseLost += (sender, e) =>
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"[{InstanceId}][LEADER] *** LEADERSHIP LOST ***");
+            Console.WriteLine($"[{InstanceId}][LEADER] Reason: {e.Reason}");
+            Console.ResetColor();
+        };
 
         while (_isRunning && lease.IsAcquired)
         {
@@ -108,24 +139,11 @@ class Program
                 // Simulate leader work
                 await PerformLeaderWork(iteration);
 
-                // Check if we need to renew the lease
-                if (DateTimeOffset.UtcNow - lastRenewal >= renewalInterval)
-                {
-                    Console.WriteLine($"[{InstanceId}][LEADER] Renewing leadership lease...");
-                    await lease.RenewAsync();
-                    lastRenewal = DateTimeOffset.UtcNow;
-                    Console.WriteLine($"[{InstanceId}][LEADER] Lease renewed. Expires at: {lease.ExpiresAt:HH:mm:ss}");
-                }
+                // No manual renewal needed - it's automatic!
+                Console.WriteLine($"[{InstanceId}][LEADER] Current lease status: Expires at {lease.ExpiresAt:HH:mm:ss}, Renewals: {lease.RenewalCount}");
 
                 // Sleep before next iteration
                 await Task.Delay(TimeSpan.FromSeconds(5));
-            }
-            catch (LeaseRenewalException)
-            {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"[{InstanceId}][LEADER] Lost leadership! Lease renewal failed.");
-                Console.ResetColor();
-                break;
             }
             catch (Exception ex)
             {
