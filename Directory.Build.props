@@ -1,0 +1,38 @@
+<Project>
+  
+  <PropertyGroup>
+    <!-- Shared Build Settings -->
+    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile Condition="'$(IsPackable)' != 'false'">true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors Condition="'$(IsTestProject)' != 'true'">true</TreatWarningsAsErrors>
+    
+    <!-- Shared NuGet Package Metadata -->
+    <Version>1.0.0</Version>
+    <Authors>DistributedLeasing Contributors</Authors>
+    <Company>DistributedLeasing</Company>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/pranshujawade/DistributedLeasing</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/pranshujawade/DistributedLeasing.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright © 2024 DistributedLeasing Contributors</Copyright>
+    
+    <!-- Source Link Configuration for Debugging Support -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    
+    <!-- Deterministic Build for CI/CD (conditional) -->
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true' or '$(TF_BUILD)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+  
+  <!-- Include README.md in all packages -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Condition="Exists('$(MSBuildThisFileDirectory)README.md')" />
+  </ItemGroup>
+
+</Project>

@@ -22,7 +22,16 @@ bld/
 *.userosscache
 *.sln.docstates
 
-# User-specific files
+## NuGet API Key (IMPORTANT: Never commit this!)
+.nuget-api-key
+*.nuget-api-key
+
+## NuGet Packages
+*.nupkg
+*.snupkg
+nupkgs/
+
+## User-specific files
 *.rsuser
 *.suo
 *.user
@@ -236,6 +245,15 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+
+# Backup folder for Package Reference Convert tool in Visual Studio 2017
+MigrationBackup/
+
+# Ionide (cross platform F# VS Code tools) working folder
+.ionide/
+
+# Fody - auto-generated XML schema
+FodyWeavers.xsd
 
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
 MigrationBackup/

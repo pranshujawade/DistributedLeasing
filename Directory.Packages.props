@@ -1,0 +1,46 @@
+<Project>
+  
+  <PropertyGroup>
+    <!-- Enable Central Package Management -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <!-- Azure SDK Packages -->
+    <PackageVersion Include="Azure.Storage.Blobs" Version="12.26.0" />
+    <PackageVersion Include="Azure.Identity" Version="1.17.1" />
+    <PackageVersion Include="Microsoft.Azure.Cosmos" Version="3.56.0" />
+    
+    <!-- Data Handling -->
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
+    
+    <!-- Redis -->
+    <PackageVersion Include="StackExchange.Redis" Version="2.10.1" />
+    
+    <!-- Microsoft Extensions for Dependency Injection -->
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.1" />
+    
+    <!-- Source Link for GitHub -->
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
+    
+    <!-- Testing Packages -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <PackageVersion Include="Moq" Version="4.20.72" />
+    <PackageVersion Include="FluentAssertions" Version="7.0.0" />
+    
+    <!-- Azure Functions (for samples) -->
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker" Version="2.0.0" />
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.0" />
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="3.2.0" />
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.Extensions.Timer" Version="4.3.1" />
+    <PackageVersion Include="Microsoft.ApplicationInsights.WorkerService" Version="2.22.0" />
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.ApplicationInsights" Version="2.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.UserSecrets" Version="9.0.1" />
+  </ItemGroup>
+
+</Project>
