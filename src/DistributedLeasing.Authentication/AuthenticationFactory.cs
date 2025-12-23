@@ -10,10 +10,17 @@ namespace DistributedLeasing.Authentication
     /// Factory for creating Azure credentials automatically from configuration.
     /// </summary>
     /// <remarks>
-    /// This class is internal and automatically creates the appropriate credential based on
-    /// the Mode setting in AuthenticationOptions. All token acquisition and refresh is handled automatically.
+    /// <para>
+    /// This class is used internally by the authentication library and providers
+    /// to create credentials based on the configured authentication mode.
+    /// All token acquisition and refresh is handled automatically.
+    /// </para>
+    /// <para>
+    /// Generally, you should not need to use this class directly. Use the
+    /// <see cref="AuthenticationServiceExtensions.AddAzureAuthentication"/> extension method instead.
+    /// </para>
     /// </remarks>
-    internal class AuthenticationFactory : IAuthenticationFactory
+    public class AuthenticationFactory : IAuthenticationFactory
     {
         private readonly ILogger _logger;
 

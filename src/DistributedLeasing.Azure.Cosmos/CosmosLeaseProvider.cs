@@ -1,5 +1,7 @@
+using Azure.Core;
 using Azure.Identity;
 using DistributedLeasing.Abstractions;
+using DistributedLeasing.Authentication;
 using DistributedLeasing.Azure.Cosmos.Models;
 using DistributedLeasing.Core;
 using DistributedLeasing.Core.Exceptions;
@@ -242,22 +244,37 @@ public class CosmosLeaseProvider : ILeaseProvider, IDisposable
             clientOptions.ConsistencyLevel = consistencyLevel;
         }
 
-        // Prioritize authentication methods
+#pragma warning disable CS0618 // Type or member is obsolete
+        // Priority: Authentication > Credential > UseManagedIdentity > AccountKey > ConnectionString
+        
+        // New authentication library (preferred)
+        if (options.Authentication != null)
+        {
+            var factory = new AuthenticationFactory(null);
+            TokenCredential credential = factory.CreateCredential(options.Authentication);
+            return new CosmosClient(options.AccountEndpoint!.ToString(), credential, clientOptions);
+        }
+
+        // Legacy: Explicit credential (deprecated)
         if (options.Credential != null)
         {
             return new CosmosClient(options.AccountEndpoint!.ToString(), options.Credential, clientOptions);
         }
 
+        // Legacy: Managed identity flag (deprecated)
         if (options.UseManagedIdentity)
         {
             return new CosmosClient(options.AccountEndpoint!.ToString(), new DefaultAzureCredential(), clientOptions);
         }
+#pragma warning restore CS0618 // Type or member is obsolete
 
+        // Account key authentication
         if (!string.IsNullOrWhiteSpace(options.AccountKey))
         {
             return new CosmosClient(options.AccountEndpoint!.ToString(), options.AccountKey, clientOptions);
         }
 
+        // Connection string authentication
         if (!string.IsNullOrWhiteSpace(options.ConnectionString))
         {
             return new CosmosClient(options.ConnectionString, clientOptions);

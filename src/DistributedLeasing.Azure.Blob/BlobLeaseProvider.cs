@@ -3,13 +3,16 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure;
+using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
 using DistributedLeasing.Abstractions;
+using DistributedLeasing.Authentication;
 using DistributedLeasing.Core;
 using DistributedLeasing.Core.Exceptions;
+using Microsoft.Extensions.Logging;
 
 namespace DistributedLeasing.Azure.Blob
 {
@@ -154,17 +157,31 @@ namespace DistributedLeasing.Azure.Blob
         /// </summary>
         private static BlobServiceClient CreateBlobServiceClient(BlobLeaseProviderOptions options)
         {
-            // Priority: Credential > UseManagedIdentity > ConnectionString
+#pragma warning disable CS0618 // Type or member is obsolete
+            // Priority: Authentication > Credential > UseManagedIdentity > ConnectionString
+            
+            // New authentication library (preferred)
+            if (options.Authentication != null)
+            {
+                var factory = new AuthenticationFactory(null);
+                TokenCredential credential = factory.CreateCredential(options.Authentication);
+                return new BlobServiceClient(options.StorageAccountUri, credential);
+            }
+
+            // Legacy: Explicit credential (deprecated)
             if (options.Credential != null)
             {
                 return new BlobServiceClient(options.StorageAccountUri, options.Credential);
             }
 
+            // Legacy: Managed identity flag (deprecated)
             if (options.UseManagedIdentity)
             {
                 return new BlobServiceClient(options.StorageAccountUri, new DefaultAzureCredential());
             }
+#pragma warning restore CS0618 // Type or member is obsolete
 
+            // Connection string
             if (!string.IsNullOrEmpty(options.ConnectionString))
             {
                 return new BlobServiceClient(options.ConnectionString);

@@ -1,6 +1,7 @@
 using Azure.Core;
 using Azure.Identity;
 using DistributedLeasing.Abstractions;
+using DistributedLeasing.Authentication;
 using DistributedLeasing.Core;
 using DistributedLeasing.Core.Exceptions;
 using StackExchange.Redis;
@@ -182,8 +183,22 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
                 SyncTimeout = options.SyncTimeout
             };
 
-            // Configure authentication
-            if (options.Credential != null || options.UseManagedIdentity)
+#pragma warning disable CS0618 // Type or member is obsolete
+            // Priority: Authentication > Credential > UseManagedIdentity > AccessKey
+            
+            // New authentication library (preferred)
+            if (options.Authentication != null)
+            {
+                var factory = new AuthenticationFactory(null);
+                TokenCredential credential = factory.CreateCredential(options.Authentication);
+                
+                // Note: StackExchange.Redis with Azure AD requires additional configuration
+                // This is a placeholder for Azure AD token-based auth
+                // In production, you'd need to implement token refresh mechanism
+                configOptions.Password = GetAzureAccessToken(credential, options.HostName!).GetAwaiter().GetResult();
+            }
+            // Legacy: Configure authentication (deprecated)
+            else if (options.Credential != null || options.UseManagedIdentity)
             {
                 // Azure Redis with AAD authentication
                 var credential = options.Credential ?? new DefaultAzureCredential();
@@ -193,6 +208,7 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
                 // In production, you'd need to implement token refresh mechanism
                 configOptions.Password = GetAzureAccessToken(credential, options.HostName!).GetAwaiter().GetResult();
             }
+#pragma warning restore CS0618 // Type or member is obsolete
             else if (!string.IsNullOrWhiteSpace(options.AccessKey))
             {
                 configOptions.Password = options.AccessKey;
