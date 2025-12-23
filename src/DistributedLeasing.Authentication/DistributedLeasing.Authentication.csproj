@@ -1,11 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <IsPackable>true</IsPackable>
+    <IsPackable>false</IsPackable>
     <!-- Package-Specific Metadata -->
     <PackageId>DistributedLeasing.Authentication</PackageId>
-    <Description>Enterprise-grade authentication library for DistributedLeasing. Provides automatic, configuration-driven authentication for Azure resources including Managed Identity, Workload Identity, Federated Credentials, and Service Principal authentication.</Description>
-    <PackageTags>distributed-leasing;authentication;azure;managed-identity;workload-identity;federated-credentials;service-principal;enterprise-auth;secretless</PackageTags>
+    <Description>[DEPRECATED] This package has been deprecated as of v2.0.0. Authentication is now embedded within each provider package. Use the provider-specific packages (DistributedLeasing.Azure.Blob, DistributedLeasing.Azure.Cosmos, DistributedLeasing.Azure.Redis) which include authentication support.</Description>
+    <PackageTags>distributed-leasing;authentication;azure;managed-identity;workload-identity;deprecated</PackageTags>
+    <PackageDeprecated>true</PackageDeprecated>
+    <DeprecationMessage>This package is deprecated. Authentication is now embedded in each provider package. Use DistributedLeasing.Azure.Blob, DistributedLeasing.Azure.Cosmos, or DistributedLeasing.Azure.Redis instead.</DeprecationMessage>
   </PropertyGroup>
 
   <ItemGroup>

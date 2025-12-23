@@ -1,10 +1,9 @@
 using Azure.Core;
 using Azure.Identity;
 using DistributedLeasing.Azure.Blob;
+using DistributedLeasing.Azure.Blob.Internal.Authentication;
 using FluentAssertions;
 using Xunit;
-
-#pragma warning disable CS0618 // Type or member is obsolete - Testing backward compatibility
 
 namespace DistributedLeasing.Azure.Blob.Tests;
 
@@ -23,10 +22,10 @@ public class BlobLeaseProviderOptionsTests
         options.ContainerName.Should().Be("leases");
         options.BlobPrefix.Should().Be("lease-");
         options.CreateContainerIfNotExists.Should().BeFalse();
-        options.UseManagedIdentity.Should().BeFalse();
         options.StorageAccountUri.Should().BeNull();
         options.ConnectionString.Should().BeNull();
         options.Credential.Should().BeNull();
+        options.Authentication.Should().BeNull();
         
         // Inherited from LeaseOptions
         options.DefaultLeaseDuration.Should().Be(TimeSpan.FromSeconds(60));
@@ -70,12 +69,15 @@ public class BlobLeaseProviderOptionsTests
     }
 
     [Fact]
-    public void Validate_WithValidManagedIdentity_DoesNotThrow()
+    public void Validate_WithValidAuthentication_DoesNotThrow()
     {
         // Arrange
         var options = new BlobLeaseProviderOptions
         {
-            UseManagedIdentity = true,
+            Authentication = new AuthenticationOptions
+            {
+                Mode = AuthenticationModes.ManagedIdentity
+            },
             StorageAccountUri = new Uri("https://testaccount.blob.core.windows.net")
         };
 
@@ -114,16 +116,19 @@ public class BlobLeaseProviderOptionsTests
 
         // Assert
         act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*authentication method*");
+            .WithMessage("*Authentication must be configured*");
     }
 
     [Fact]
-    public void Validate_WithManagedIdentityButNoUri_ThrowsInvalidOperationException()
+    public void Validate_WithAuthenticationButNoUri_ThrowsInvalidOperationException()
     {
         // Arrange
         var options = new BlobLeaseProviderOptions
         {
-            UseManagedIdentity = true
+            Authentication = new AuthenticationOptions
+            {
+                Mode = AuthenticationModes.ManagedIdentity
+            }
         };
 
         // Act
@@ -309,7 +314,10 @@ public class BlobLeaseProviderOptionsTests
             Credential = new DefaultAzureCredential(),
             StorageAccountUri = new Uri("https://testaccount.blob.core.windows.net"),
             ConnectionString = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdGtleQ==;EndpointSuffix=core.windows.net",
-            UseManagedIdentity = true
+            Authentication = new AuthenticationOptions
+            {
+                Mode = AuthenticationModes.Auto
+            }
         };
 
         // Act
@@ -320,13 +328,16 @@ public class BlobLeaseProviderOptionsTests
     }
 
     [Fact]
-    public void Validate_WithConnectionStringAndManagedIdentity_UsesConnectionString()
+    public void Validate_WithConnectionStringAndAuthentication_UsesConnectionString()
     {
         // Arrange
         var options = new BlobLeaseProviderOptions
         {
             ConnectionString = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdGtleQ==;EndpointSuffix=core.windows.net",
-            UseManagedIdentity = true,
+            Authentication = new AuthenticationOptions
+            {
+                Mode = AuthenticationModes.Auto
+            },
             StorageAccountUri = new Uri("https://testaccount.blob.core.windows.net")
         };
 

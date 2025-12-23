@@ -1,11 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <IsPackable>true</IsPackable>
+    <IsPackable>false</IsPackable>
     <!-- Package-Specific Metadata -->
     <PackageId>DistributedLeasing.Abstractions</PackageId>
-    <Description>Provider abstractions and base classes for the DistributedLeasing library. Implement these interfaces to create custom lease providers.</Description>
-    <PackageTags>distributed-leasing;leader-election;distributed-lock;provider;abstraction</PackageTags>
+    <Description>[DEPRECATED] This package has been deprecated as of v2.0.0. Provider abstractions are now internal implementation details. Use the provider-specific packages (DistributedLeasing.Azure.Blob, DistributedLeasing.Azure.Cosmos, DistributedLeasing.Azure.Redis) directly.</Description>
+    <PackageTags>distributed-leasing;leader-election;distributed-lock;provider;abstraction;deprecated</PackageTags>
+    <PackageDeprecated>true</PackageDeprecated>
+    <DeprecationMessage>This package is deprecated. Provider abstractions are now internal to each provider package. Use DistributedLeasing.Azure.Blob, DistributedLeasing.Azure.Cosmos, or DistributedLeasing.Azure.Redis instead.</DeprecationMessage>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,6 +1,4 @@
 using System;
-using Azure.Core;
-using DistributedLeasing.Authentication;
 
 namespace DistributedLeasing.Core.Configuration
 {
@@ -21,101 +19,7 @@ namespace DistributedLeasing.Core.Configuration
         private int _autoRenewMaxRetries = 3;
         private double _autoRenewSafetyThreshold = 0.9;
 
-        /// <summary>
-        /// Gets or sets the authentication configuration for Azure resources.
-        /// </summary>
-        /// <value>
-        /// An <see cref="AuthenticationOptions"/> instance for configuring authentication, or <c>null</c> to use legacy methods.
-        /// </value>
-        /// <remarks>
-        /// <para>
-        /// This is the recommended way to configure authentication. It supports:
-        /// <list type="bullet">
-        /// <item><description>Auto - Automatic environment-aware credential chain</description></item>
-        /// <item><description>ManagedIdentity - Azure Managed Identity</description></item>
-        /// <item><description>WorkloadIdentity - Kubernetes/GitHub Actions Workload Identity</description></item>
-        /// <item><description>ServicePrincipal - Certificate or Secret-based Service Principal</description></item>
-        /// <item><description>FederatedCredential - Federated Identity Credential</description></item>
-        /// <item><description>Development - Development credentials (Azure CLI, VS, VS Code)</description></item>
-        /// </list>
-        /// </para>
-        /// <para>
-        /// Example configuration in appsettings.json:
-        /// <code>
-        /// {
-        ///   "Leasing": {
-        ///     "Authentication": {
-        ///       "Mode": "Auto",
-        ///       "EnableDevelopmentCredentials": true
-        ///     }
-        ///   }
-        /// }
-        /// </code>
-        /// </para>
-        /// </remarks>
-        public AuthenticationOptions? Authentication { get; set; }
 
-        /// <summary>
-        /// Gets or sets a value indicating whether to use Azure Managed Identity for authentication.
-        /// </summary>
-        /// <value>
-        /// <c>true</c> to use DefaultAzureCredential for managed identity authentication;
-        /// otherwise, <c>false</c>. Default is <c>false</c>.
-        /// </value>
-        /// <remarks>
-        /// <para>
-        /// <strong>DEPRECATED:</strong> This property is obsolete and will be removed in a future version.
-        /// Use the <see cref="Authentication"/> property instead.
-        /// </para>
-        /// <para>
-        /// When set to <c>true</c>, the provider will use DefaultAzureCredential which supports
-        /// environment variables, workload identity, managed identity, Azure CLI, and Visual Studio authentication.
-        /// </para>
-        /// <para>
-        /// Migration example:
-        /// <code>
-        /// // OLD:
-        /// options.UseManagedIdentity = true;
-        /// 
-        /// // NEW:
-        /// options.Authentication = new AuthenticationOptions
-        /// {
-        ///     Mode = AuthenticationModes.Auto
-        /// };
-        /// </code>
-        /// </para>
-        /// </remarks>
-        [Obsolete("Use Authentication property instead. This property will be removed in a future version. See documentation for migration guide.")]
-        public bool UseManagedIdentity { get; set; }
-
-        /// <summary>
-        /// Gets or sets the Azure credential to use for authentication.
-        /// </summary>
-        /// <value>
-        /// A <see cref="TokenCredential"/> for authentication, or <c>null</c> to use other methods.
-        /// </value>
-        /// <remarks>
-        /// <para>
-        /// <strong>DEPRECATED:</strong> This property is obsolete and will be removed in a future version.
-        /// Manual credential management is not recommended.
-        /// </para>
-        /// <para>
-        /// <strong>NO MIGRATION PATH:</strong> This property allowed manual credential injection, which is
-        /// counter to the design of the new authentication library. The library now handles all credential
-        /// creation and management automatically based on configuration.
-        /// </para>
-        /// <para>
-        /// If you need credential customization, configure it through <see cref="Authentication"/> property
-        /// using the appropriate authentication mode (ServicePrincipal, FederatedCredential, etc.).
-        /// </para>
-        /// <para>
-        /// For backward compatibility, if this property is set, it will still be used and will take
-        /// precedence over all other authentication methods. However, this behavior will be removed
-        /// in a future version.
-        /// </para>
-        /// </remarks>
-        [Obsolete("Manual credential injection is deprecated. Use Authentication property instead. This property will be removed in a future version.", false)]
-        public TokenCredential? Credential { get; set; }
 
         /// <summary>
         /// Gets or sets the default duration for acquired leases.
@@ -341,9 +245,6 @@ namespace DistributedLeasing.Core.Configuration
         /// </remarks>
         public virtual void Validate()
         {
-            // Validate authentication configuration if provided
-            Authentication?.Validate();
-
             if (AutoRenew && DefaultLeaseDuration != Timeout.InfiniteTimeSpan)
             {
                 if (AutoRenewInterval >= DefaultLeaseDuration)
@@ -370,42 +271,6 @@ namespace DistributedLeasing.Core.Configuration
                         $"Consider reducing AutoRenewRetryInterval or increasing the buffer by reducing AutoRenewInterval.");
                 }
             }
-        }
-
-        /// <summary>
-        /// Validates that at least one authentication method is configured.
-        /// </summary>
-        /// <param name="hasConnectionString">Whether a connection string is provided.</param>
-        /// <param name="hasAlternativeAuth">Whether an alternative authentication method (like access key) is provided.</param>
-        /// <param name="providerName">The name of the provider for error messages.</param>
-        /// <exception cref="InvalidOperationException">Thrown when no authentication method is configured.</exception>
-        protected void ValidateAuthenticationConfigured(bool hasConnectionString, bool hasAlternativeAuth, string providerName)
-        {
-#pragma warning disable CS0618 // Type or member is obsolete
-            if (Credential == null && !UseManagedIdentity && Authentication == null && !hasConnectionString && !hasAlternativeAuth)
-            {
-                throw new InvalidOperationException(
-                    $"No authentication method configured for {providerName}. " +
-                    "Set Authentication, Credential, UseManagedIdentity=true, ConnectionString, or an alternative authentication method.");
-            }
-#pragma warning restore CS0618 // Type or member is obsolete
-        }
-
-        /// <summary>
-        /// Validates that an endpoint is provided when using credential-based authentication.
-        /// </summary>
-        /// <param name="hasEndpoint">Whether an endpoint is provided.</param>
-        /// <param name="endpointPropertyName">The name of the endpoint property for error messages.</param>
-        /// <exception cref="InvalidOperationException">Thrown when endpoint is missing for credential-based authentication.</exception>
-        protected void ValidateEndpointForCredential(bool hasEndpoint, string endpointPropertyName = "Endpoint")
-        {
-#pragma warning disable CS0618 // Type or member is obsolete
-            if ((Credential != null || UseManagedIdentity || Authentication != null) && !hasEndpoint)
-            {
-                throw new InvalidOperationException(
-                    $"{endpointPropertyName} is required when using Authentication, Credential, or UseManagedIdentity.");
-            }
-#pragma warning restore CS0618 // Type or member is obsolete
         }
     }
 }

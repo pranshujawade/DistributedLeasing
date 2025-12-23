@@ -80,10 +80,27 @@ namespace DistributedLeasing.Abstractions
 
             var startTime = DateTimeOffset.UtcNow;
             var retryInterval = Options.AcquireRetryInterval;
+            
+            // Safety valve: even with infinite timeout, limit max attempts to prevent runaway loops
+            const int MaxAttemptsWithInfiniteTimeout = 10000;
+            int attemptCount = 0;
 
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                
+                // Circuit breaker: prevent infinite loops even with Timeout.InfiniteTimeSpan
+                if (effectiveTimeout == Timeout.InfiniteTimeSpan)
+                {
+                    if (++attemptCount > MaxAttemptsWithInfiniteTimeout)
+                    {
+                        throw new LeaseAcquisitionException(
+                            $"Could not acquire lease '{leaseName}' after {MaxAttemptsWithInfiniteTimeout} attempts (safety limit).")
+                        {
+                            LeaseName = leaseName
+                        };
+                    }
+                }
 
                 // Check if we've exceeded the timeout
                 if (effectiveTimeout != Timeout.InfiniteTimeSpan)

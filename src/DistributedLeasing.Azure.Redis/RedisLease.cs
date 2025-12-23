@@ -1,4 +1,4 @@
-using DistributedLeasing.Abstractions;
+using DistributedLeasing.Azure.Redis.Internal.Abstractions;
 using DistributedLeasing.Core;
 using DistributedLeasing.Core.Configuration;
 using DistributedLeasing.Core.Exceptions;
@@ -55,8 +55,10 @@ internal class RedisLease : LeaseBase
     {
         try
         {
-            var newExpiration = DateTimeOffset.UtcNow.Add(ExpiresAt - AcquiredAt);
-            var ttlMilliseconds = (long)(newExpiration - DateTimeOffset.UtcNow).TotalMilliseconds;
+            // Calculate renewal duration (original lease duration)
+            var renewalDuration = ExpiresAt - AcquiredAt;
+            var newExpiration = DateTimeOffset.UtcNow.Add(renewalDuration);
+            var ttlMilliseconds = (long)renewalDuration.TotalMilliseconds;
 
             if (ttlMilliseconds <= 0)
             {
@@ -84,14 +86,16 @@ internal class RedisLease : LeaseBase
 
             if (result.IsNull || (int)result == 0)
             {
-                var ex = new LeaseLostException(
-                    $"Lease '{LeaseName}' is no longer held by this instance.");
-                ex.LeaseName = LeaseName;
-                ex.LeaseId = LeaseId;
-                throw ex;
+                throw new LeaseLostException(
+                    $"Lease '{LeaseName}' is no longer held by this instance.")
+                {
+                    LeaseName = LeaseName,
+                    LeaseId = LeaseId
+                };
             }
 
-            //UpdateExpiration(newExpiration);
+            // CRITICAL FIX: Update expiration after successful renewal
+            ExpiresAt = newExpiration;
         }
         catch (LeaseLostException)
         {

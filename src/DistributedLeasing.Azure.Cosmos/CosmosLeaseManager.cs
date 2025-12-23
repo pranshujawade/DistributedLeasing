@@ -1,4 +1,4 @@
-using DistributedLeasing.Abstractions;
+using DistributedLeasing.Azure.Cosmos.Internal.Abstractions;
 using Microsoft.Azure.Cosmos;
 
 namespace DistributedLeasing.Azure.Cosmos;
@@ -10,7 +10,7 @@ namespace DistributedLeasing.Azure.Cosmos;
 /// This manager uses <see cref="CosmosLeaseProvider"/> to manage leases in Cosmos DB.
 /// Supports automatic renewal and retry logic with exponential backoff.
 /// </remarks>
-public class CosmosLeaseManager : LeaseManagerBase, IDisposable
+internal class CosmosLeaseManager : LeaseManagerBase, IDisposable
 {
     private readonly CosmosLeaseProvider _provider;
     private readonly bool _ownsProvider;

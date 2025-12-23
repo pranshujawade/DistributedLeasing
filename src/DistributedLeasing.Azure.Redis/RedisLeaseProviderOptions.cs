@@ -1,4 +1,5 @@
 using Azure.Core;
+using DistributedLeasing.Azure.Redis.Internal.Authentication;
 using DistributedLeasing.Core.Configuration;
 
 namespace DistributedLeasing.Azure.Redis;
@@ -164,6 +165,39 @@ public class RedisLeaseProviderOptions : LeaseOptions
     public TimeSpan MinimumValidity { get; set; } = TimeSpan.FromMilliseconds(100);
 
     /// <summary>
+    /// Gets or sets the authentication configuration.
+    /// </summary>
+    /// <value>
+    /// Authentication options, or <c>null</c> to use connection string or access key.
+    /// </value>
+    /// <remarks>
+    /// <para>
+    /// When using managed identity or other token-based authentication, configure this property
+    /// and provide <see cref="HostName"/> instead of <see cref="ConnectionString"/> or <see cref="AccessKey"/>.
+    /// </para>
+    /// <para>
+    /// For development, you can omit this and provide ConnectionString or AccessKey instead.
+    /// </para>
+    /// </remarks>
+    public AuthenticationOptions? Authentication { get; set; }
+
+    /// <summary>
+    /// Gets or sets the credential to use for authentication.
+    /// </summary>
+    /// <value>
+    /// The token credential, or <c>null</c> to use connection string, access key, or authentication configuration.
+    /// </value>
+    /// <remarks>
+    /// <para>
+    /// This property allows direct injection of a credential, bypassing the authentication configuration.
+    /// </para>
+    /// <para>
+    /// If set, this takes precedence over <see cref="Authentication"/>, <see cref="ConnectionString"/>, and <see cref="AccessKey"/>.
+    /// </para>
+    /// </remarks>
+    public TokenCredential? Credential { get; set; }
+
+    /// <summary>
     /// Validates the configuration options.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when the configuration is invalid.</exception>
@@ -172,16 +206,24 @@ public class RedisLeaseProviderOptions : LeaseOptions
     {
         base.Validate();
 
-        // Validate authentication configuration using base class helper
+        // Validate authentication configuration
         ValidateAuthenticationConfigured(
-            hasConnectionString: !string.IsNullOrWhiteSpace(ConnectionString),
-            hasAlternativeAuth: !string.IsNullOrWhiteSpace(AccessKey),
+            hasConnectionString: !string.IsNullOrWhiteSpace(ConnectionString) || !string.IsNullOrWhiteSpace(AccessKey),
+            hasAlternativeAuth: !string.IsNullOrWhiteSpace(HostName) || Credential != null || Authentication != null,
             providerName: "Azure Redis");
 
-        // Validate hostname for credential-based authentication using base class helper
-        ValidateEndpointForCredential(
-            hasEndpoint: !string.IsNullOrWhiteSpace(HostName),
-            endpointPropertyName: nameof(HostName));
+        // If using credential or authentication, require HostName
+        if ((Credential != null || Authentication != null) && string.IsNullOrWhiteSpace(HostName))
+        {
+            throw new InvalidOperationException(
+                "HostName is required when using Credential or Authentication configuration.");
+        }
+
+        // Validate authentication options if provided
+        if (Authentication != null)
+        {
+            Authentication.Validate();
+        }
 
         // Validate key prefix
         if (string.IsNullOrWhiteSpace(KeyPrefix))
@@ -234,6 +276,19 @@ public class RedisLeaseProviderOptions : LeaseOptions
             throw new ArgumentOutOfRangeException(
                 nameof(MinimumValidity),
                 "MinimumValidity must be positive.");
+        }
+    }
+
+    /// <summary>
+    /// Validates that authentication is properly configured.
+    /// </summary>
+    private void ValidateAuthenticationConfigured(bool hasConnectionString, bool hasAlternativeAuth, string providerName)
+    {
+        if (!hasConnectionString && !hasAlternativeAuth)
+        {
+            throw new InvalidOperationException(
+                $"Authentication must be configured for {providerName}. " +
+                "Either provide ConnectionString/AccessKey, or configure Authentication/Credential with the required HostName.");
         }
     }
 }

@@ -1,4 +1,5 @@
 using Azure.Core;
+using DistributedLeasing.Azure.Cosmos.Internal.Authentication;
 using DistributedLeasing.Core.Configuration;
 
 namespace DistributedLeasing.Azure.Cosmos;
@@ -130,6 +131,39 @@ public class CosmosLeaseProviderOptions : LeaseOptions
     public string ConsistencyLevel { get; set; } = "Session";
 
     /// <summary>
+    /// Gets or sets the authentication configuration.
+    /// </summary>
+    /// <value>
+    /// Authentication options, or <c>null</c> to use connection string or account key.
+    /// </value>
+    /// <remarks>
+    /// <para>
+    /// When using managed identity or other token-based authentication, configure this property
+    /// and provide <see cref="AccountEndpoint"/> instead of <see cref="ConnectionString"/> or <see cref="AccountKey"/>.
+    /// </para>
+    /// <para>
+    /// For development, you can omit this and provide ConnectionString or AccountKey instead.
+    /// </para>
+    /// </remarks>
+    public AuthenticationOptions? Authentication { get; set; }
+
+    /// <summary>
+    /// Gets or sets the credential to use for authentication.
+    /// </summary>
+    /// <value>
+    /// The token credential, or <c>null</c> to use connection string, account key, or authentication configuration.
+    /// </value>
+    /// <remarks>
+    /// <para>
+    /// This property allows direct injection of a credential, bypassing the authentication configuration.
+    /// </para>
+    /// <para>
+    /// If set, this takes precedence over <see cref="Authentication"/>, <see cref="ConnectionString"/>, and <see cref="AccountKey"/>.
+    /// </para>
+    /// </remarks>
+    public TokenCredential? Credential { get; set; }
+
+    /// <summary>
     /// Validates the configuration options.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown when the configuration is invalid.</exception>
@@ -138,16 +172,24 @@ public class CosmosLeaseProviderOptions : LeaseOptions
     {
         base.Validate();
 
-        // Validate authentication configuration using base class helper
+        // Validate authentication configuration
         ValidateAuthenticationConfigured(
-            hasConnectionString: !string.IsNullOrWhiteSpace(ConnectionString),
-            hasAlternativeAuth: !string.IsNullOrWhiteSpace(AccountKey),
+            hasConnectionString: !string.IsNullOrWhiteSpace(ConnectionString) || !string.IsNullOrWhiteSpace(AccountKey),
+            hasAlternativeAuth: AccountEndpoint != null || Credential != null || Authentication != null,
             providerName: "Azure Cosmos DB");
 
-        // Validate endpoint for credential-based authentication using base class helper
-        ValidateEndpointForCredential(
-            hasEndpoint: AccountEndpoint != null,
-            endpointPropertyName: nameof(AccountEndpoint));
+        // If using credential or authentication, require AccountEndpoint
+        if ((Credential != null || Authentication != null) && AccountEndpoint == null)
+        {
+            throw new InvalidOperationException(
+                "AccountEndpoint is required when using Credential or Authentication configuration.");
+        }
+
+        // Validate authentication options if provided
+        if (Authentication != null)
+        {
+            Authentication.Validate();
+        }
 
         // Validate database name
         if (string.IsNullOrWhiteSpace(DatabaseName))
@@ -181,6 +223,19 @@ public class CosmosLeaseProviderOptions : LeaseOptions
             throw new ArgumentOutOfRangeException(
                 nameof(DefaultTimeToLive),
                 "DefaultTimeToLive must be -1 (disabled) or a positive number of seconds.");
+        }
+    }
+
+    /// <summary>
+    /// Validates that authentication is properly configured.
+    /// </summary>
+    private void ValidateAuthenticationConfigured(bool hasConnectionString, bool hasAlternativeAuth, string providerName)
+    {
+        if (!hasConnectionString && !hasAlternativeAuth)
+        {
+            throw new InvalidOperationException(
+                $"Authentication must be configured for {providerName}. " +
+                "Either provide ConnectionString/AccountKey, or configure Authentication/Credential with the required AccountEndpoint.");
         }
     }
 }

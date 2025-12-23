@@ -1,4 +1,4 @@
-using DistributedLeasing.Abstractions;
+using DistributedLeasing.Azure.Blob.Internal.Abstractions;
 
 namespace DistributedLeasing.Azure.Blob
 {
@@ -9,7 +9,7 @@ namespace DistributedLeasing.Azure.Blob
     /// This class combines the <see cref="BlobLeaseProvider"/> with the base lease manager
     /// functionality to provide a complete blob-based lease management solution.
     /// </remarks>
-    public class BlobLeaseManager : LeaseManagerBase
+    internal class BlobLeaseManager : LeaseManagerBase
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="BlobLeaseManager"/> class.

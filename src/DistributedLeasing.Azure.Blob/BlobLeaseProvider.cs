@@ -8,8 +8,8 @@ using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
-using DistributedLeasing.Abstractions;
-using DistributedLeasing.Authentication;
+using DistributedLeasing.Azure.Blob.Internal.Abstractions;
+using DistributedLeasing.Azure.Blob.Internal.Authentication;
 using DistributedLeasing.Core;
 using DistributedLeasing.Core.Exceptions;
 using Microsoft.Extensions.Logging;
@@ -35,7 +35,7 @@ namespace DistributedLeasing.Azure.Blob
         private readonly BlobServiceClient _blobServiceClient;
         private readonly BlobLeaseProviderOptions _options;
         private readonly BlobContainerClient _containerClient;
-        private bool _containerInitialized;
+        private volatile bool _containerInitialized;
         private readonly SemaphoreSlim _containerInitLock = new SemaphoreSlim(1, 1);
 
         /// <summary>
@@ -84,7 +84,8 @@ namespace DistributedLeasing.Azure.Blob
                     cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
-                return new BlobLease(leaseClient, leaseName, duration);
+                // Pass options to enable auto-renewal support
+                return new BlobLease(leaseClient, leaseName, duration, _options);
             }
             catch (RequestFailedException ex) when (ex.Status == 409)
             {
@@ -157,37 +158,35 @@ namespace DistributedLeasing.Azure.Blob
         /// </summary>
         private static BlobServiceClient CreateBlobServiceClient(BlobLeaseProviderOptions options)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
-            // Priority: Authentication > Credential > UseManagedIdentity > ConnectionString
-            
-            // New authentication library (preferred)
-            if (options.Authentication != null)
-            {
-                var factory = new AuthenticationFactory(null);
-                TokenCredential credential = factory.CreateCredential(options.Authentication);
-                return new BlobServiceClient(options.StorageAccountUri, credential);
+            // Priority 1: Connection string (simplest, for development)
+            if (!string.IsNullOrEmpty(options.ConnectionString))
+            {   
+                return new BlobServiceClient(options.ConnectionString);
             }
-
-            // Legacy: Explicit credential (deprecated)
-            if (options.Credential != null)
+            
+            // Priority 2: Direct credential injection (for advanced scenarios)
+            if (options.Credential != null && options.StorageAccountUri != null)
             {
                 return new BlobServiceClient(options.StorageAccountUri, options.Credential);
             }
-
-            // Legacy: Managed identity flag (deprecated)
-            if (options.UseManagedIdentity)
+            
+            // Priority 3: Authentication configuration (recommended for production)
+            if (options.Authentication != null && options.StorageAccountUri != null)
+            {
+                var factory = new AuthenticationFactory();
+                var credential = factory.CreateCredential(options.Authentication);
+                return new BlobServiceClient(options.StorageAccountUri, credential);
+            }
+            
+            // Fallback: DefaultAzureCredential (for managed identity without explicit config)
+            if (options.StorageAccountUri != null)
             {
                 return new BlobServiceClient(options.StorageAccountUri, new DefaultAzureCredential());
             }
-#pragma warning restore CS0618 // Type or member is obsolete
 
-            // Connection string
-            if (!string.IsNullOrEmpty(options.ConnectionString))
-            {
-                return new BlobServiceClient(options.ConnectionString);
-            }
-
-            throw new InvalidOperationException("No valid authentication method configured.");
+            throw new InvalidOperationException(
+                "No valid authentication method configured. " +
+                "Provide ConnectionString, or configure Authentication/Credential with StorageAccountUri.");
         }
 
         /// <summary>

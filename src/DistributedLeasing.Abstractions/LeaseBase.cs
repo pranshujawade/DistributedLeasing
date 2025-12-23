@@ -1,10 +1,14 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using DistributedLeasing.Core;
 using DistributedLeasing.Core.Configuration;
 using DistributedLeasing.Core.Events;
 using DistributedLeasing.Core.Exceptions;
+#if NET5_0_OR_GREATER
+using DistributedLeasing.Core.Observability;
+#endif
 
 namespace DistributedLeasing.Abstractions
 {
@@ -340,14 +344,15 @@ namespace DistributedLeasing.Abstractions
                     // Update last renewal attempt time
                     lastRenewalAttempt = DateTimeOffset.UtcNow;
                     
-                    // Check if we're still within safety threshold
-                    var timeSinceAcquisition = DateTimeOffset.UtcNow - AcquiredAt;
+                    // FIX: Check if we're still within safety threshold using _lastSuccessfulRenewal
+                    var timeSinceSuccessfulRenewal = DateTimeOffset.UtcNow - _lastSuccessfulRenewal;
                     var safetyThreshold = TimeSpan.FromMilliseconds(_leaseDuration.TotalMilliseconds * _options.AutoRenewSafetyThreshold);
                     
-                    if (timeSinceAcquisition >= safetyThreshold)
+                    if (timeSinceSuccessfulRenewal >= safetyThreshold)
                     {
                         // Too close to expiration, mark lease as lost
-                        OnLeaseLost($"Renewal window exceeded safety threshold ({_options.AutoRenewSafetyThreshold * 100}%)");
+                        OnLeaseLost($"Time since last successful renewal ({timeSinceSuccessfulRenewal:g}) " +
+                                   $"exceeded safety threshold ({safetyThreshold:g}, {_options.AutoRenewSafetyThreshold * 100}%)");
                         break;
                     }
                     
@@ -423,10 +428,10 @@ namespace DistributedLeasing.Abstractions
                     // Not the last attempt, retry with exponential backoff
                     var delay = TimeSpan.FromMilliseconds(retryInterval.TotalMilliseconds * Math.Pow(2, attempt - 1));
                     
-                    // Ensure we don't exceed safety threshold with retry
-                    var timeSinceAcquisition = DateTimeOffset.UtcNow - AcquiredAt;
+                    // FIX: Ensure we don't exceed safety threshold with retry using _lastSuccessfulRenewal
+                    var timeSinceSuccessfulRenewal = DateTimeOffset.UtcNow - _lastSuccessfulRenewal;
                     var safetyThreshold = TimeSpan.FromMilliseconds(_leaseDuration.TotalMilliseconds * _options.AutoRenewSafetyThreshold);
-                    var remainingTime = safetyThreshold - timeSinceAcquisition;
+                    var remainingTime = safetyThreshold - timeSinceSuccessfulRenewal;
                     
                     if (remainingTime <= TimeSpan.Zero)
                     {

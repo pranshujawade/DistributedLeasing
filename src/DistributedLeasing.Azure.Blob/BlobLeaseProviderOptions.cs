@@ -1,5 +1,6 @@
 using System;
 using Azure.Core;
+using DistributedLeasing.Azure.Blob.Internal.Authentication;
 using DistributedLeasing.Core.Configuration;
 
 namespace DistributedLeasing.Azure.Blob
@@ -133,6 +134,39 @@ namespace DistributedLeasing.Azure.Blob
         }
 
         /// <summary>
+        /// Gets or sets the authentication configuration.
+        /// </summary>
+        /// <value>
+        /// Authentication options, or <c>null</c> to use connection string.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// When using managed identity or other token-based authentication, configure this property
+        /// and provide <see cref="StorageAccountUri"/> instead of <see cref="ConnectionString"/>.
+        /// </para>
+        /// <para>
+        /// For development, you can omit this and provide ConnectionString instead.
+        /// </para>
+        /// </remarks>
+        public AuthenticationOptions? Authentication { get; set; }
+
+        /// <summary>
+        /// Gets or sets the credential to use for authentication.
+        /// </summary>
+        /// <value>
+        /// The token credential, or <c>null</c> to use connection string or authentication configuration.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// This property allows direct injection of a credential, bypassing the authentication configuration.
+        /// </para>
+        /// <para>
+        /// If set, this takes precedence over both <see cref="Authentication"/> and <see cref="ConnectionString"/>.
+        /// </para>
+        /// </remarks>
+        public TokenCredential? Credential { get; set; }
+
+        /// <summary>
         /// Gets the minimum allowed lease duration for Azure Blob Storage.
         /// </summary>
         /// <value>
@@ -158,16 +192,24 @@ namespace DistributedLeasing.Azure.Blob
         {
             base.Validate();
 
-            // Validate authentication configuration using base class helper
+            // Validate authentication configuration
             ValidateAuthenticationConfigured(
                 hasConnectionString: !string.IsNullOrEmpty(ConnectionString),
-                hasAlternativeAuth: false,
+                hasAlternativeAuth: StorageAccountUri != null || Credential != null || Authentication != null,
                 providerName: "Azure Blob Storage");
 
-            // Validate endpoint for credential-based authentication using base class helper
-            ValidateEndpointForCredential(
-                hasEndpoint: StorageAccountUri != null,
-                endpointPropertyName: nameof(StorageAccountUri));
+            // If using credential or authentication, require StorageAccountUri
+            if ((Credential != null || Authentication != null) && StorageAccountUri == null)
+            {
+                throw new InvalidOperationException(
+                    "StorageAccountUri is required when using Credential or Authentication configuration.");
+            }
+
+            // Validate authentication options if provided
+            if (Authentication != null)
+            {
+                Authentication.Validate();
+            }
 
             if (string.IsNullOrWhiteSpace(ContainerName))
             {
@@ -188,6 +230,19 @@ namespace DistributedLeasing.Azure.Blob
                     throw new InvalidOperationException(
                         $"DefaultLeaseDuration must be at most {MaxLeaseDuration.TotalSeconds} seconds for Azure Blob Storage (use Timeout.InfiniteTimeSpan for infinite leases).");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Validates that authentication is properly configured.
+        /// </summary>
+        private void ValidateAuthenticationConfigured(bool hasConnectionString, bool hasAlternativeAuth, string providerName)
+        {
+            if (!hasConnectionString && !hasAlternativeAuth)
+            {
+                throw new InvalidOperationException(
+                    $"Authentication must be configured for {providerName}. " +
+                    "Either provide ConnectionString, or configure Authentication/Credential with the required Endpoint.");
             }
         }
     }

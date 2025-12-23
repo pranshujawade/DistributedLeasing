@@ -1,4 +1,4 @@
-using DistributedLeasing.Abstractions;
+using DistributedLeasing.Azure.Cosmos.Internal.Abstractions;
 using DistributedLeasing.Core;
 using DistributedLeasing.Core.Configuration;
 using DistributedLeasing.Core.Exceptions;

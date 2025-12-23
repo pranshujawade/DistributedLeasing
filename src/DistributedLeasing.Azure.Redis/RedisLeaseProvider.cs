@@ -1,7 +1,7 @@
 using Azure.Core;
 using Azure.Identity;
-using DistributedLeasing.Abstractions;
-using DistributedLeasing.Authentication;
+using DistributedLeasing.Azure.Redis.Internal.Abstractions;
+using DistributedLeasing.Azure.Redis.Internal.Authentication;
 using DistributedLeasing.Core;
 using DistributedLeasing.Core.Exceptions;
 using StackExchange.Redis;
@@ -28,6 +28,24 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
     /// </summary>
     /// <param name="options">Configuration options for the provider.</param>
     /// <exception cref="ArgumentNullException">Thrown when options is null.</exception>
+    /// <remarks>
+    /// <para>
+    /// <strong>DEPRECATED:</strong> This constructor performs synchronous blocking on async operations
+    /// during connection initialization, which can cause deadlocks in some contexts.
+    /// </para>
+    /// <para>
+    /// <strong>Recommended:</strong> Use <see cref="RedisLeaseProviderFactory.CreateAsync"/> instead
+    /// for proper async initialization.
+    /// </para>
+    /// <code>
+    /// // Instead of:
+    /// // var provider = new RedisLeaseProvider(options);
+    /// 
+    /// // Use:
+    /// var provider = await RedisLeaseProviderFactory.CreateAsync(options);
+    /// </code>
+    /// </remarks>
+    [Obsolete("Use RedisLeaseProviderFactory.CreateAsync() for proper async initialization to avoid deadlock risks. This constructor will be removed in version 2.0.0.", false)]
     public RedisLeaseProvider(RedisLeaseProviderOptions options)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -43,15 +61,27 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
     /// </summary>
     /// <param name="connection">An existing Redis connection multiplexer.</param>
     /// <param name="options">Configuration options for the provider.</param>
+    /// <param name="ownsConnection">Whether this provider owns the connection and should dispose it.</param>
     /// <exception cref="ArgumentNullException">Thrown when connection or options is null.</exception>
-    public RedisLeaseProvider(IConnectionMultiplexer connection, RedisLeaseProviderOptions options)
+    internal RedisLeaseProvider(IConnectionMultiplexer connection, RedisLeaseProviderOptions options, bool ownsConnection)
     {
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _options.Validate();
 
         _database = _connection.GetDatabase(_options.Database);
-        _ownsConnection = false;
+        _ownsConnection = ownsConnection;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RedisLeaseProvider"/> class with an existing connection.
+    /// </summary>
+    /// <param name="connection">An existing Redis connection multiplexer.</param>
+    /// <param name="options">Configuration options for the provider.</param>
+    /// <exception cref="ArgumentNullException">Thrown when connection or options is null.</exception>
+    public RedisLeaseProvider(IConnectionMultiplexer connection, RedisLeaseProviderOptions options)
+        : this(connection, options, ownsConnection: false)
+    {
     }
 
     /// <inheritdoc/>
@@ -183,35 +213,28 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
                 SyncTimeout = options.SyncTimeout
             };
 
-#pragma warning disable CS0618 // Type or member is obsolete
-            // Priority: Authentication > Credential > UseManagedIdentity > AccessKey
-            
-            // New authentication library (preferred)
-            if (options.Authentication != null)
-            {
-                var factory = new AuthenticationFactory(null);
-                TokenCredential credential = factory.CreateCredential(options.Authentication);
-                
-                // Note: StackExchange.Redis with Azure AD requires additional configuration
-                // This is a placeholder for Azure AD token-based auth
-                // In production, you'd need to implement token refresh mechanism
-                configOptions.Password = GetAzureAccessToken(credential, options.HostName!).GetAwaiter().GetResult();
-            }
-            // Legacy: Configure authentication (deprecated)
-            else if (options.Credential != null || options.UseManagedIdentity)
-            {
-                // Azure Redis with AAD authentication
-                var credential = options.Credential ?? new DefaultAzureCredential();
-                
-                // Note: StackExchange.Redis with Azure AD requires additional configuration
-                // This is a placeholder for Azure AD token-based auth
-                // In production, you'd need to implement token refresh mechanism
-                configOptions.Password = GetAzureAccessToken(credential, options.HostName!).GetAwaiter().GetResult();
-            }
-#pragma warning restore CS0618 // Type or member is obsolete
-            else if (!string.IsNullOrWhiteSpace(options.AccessKey))
+            // Priority 1: Access key (for development)
+            if (!string.IsNullOrWhiteSpace(options.AccessKey))
             {
                 configOptions.Password = options.AccessKey;
+            }
+            // Priority 2: Direct credential injection (for advanced scenarios)
+            else if (options.Credential != null && options.HostName != null)
+            {
+                configOptions.Password = GetAzureAccessToken(options.Credential, options.HostName).GetAwaiter().GetResult();
+            }
+            // Priority 3: Authentication configuration (recommended for production)
+            else if (options.Authentication != null && options.HostName != null)
+            {
+                var factory = new AuthenticationFactory();
+                var credential = factory.CreateCredential(options.Authentication);
+                configOptions.Password = GetAzureAccessToken(credential, options.HostName).GetAwaiter().GetResult();
+            }
+            // Fallback: DefaultAzureCredential (for managed identity without explicit config)
+            else if (options.HostName != null)
+            {
+                var credential = new DefaultAzureCredential();
+                configOptions.Password = GetAzureAccessToken(credential, options.HostName).GetAwaiter().GetResult();
             }
         }
 

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>DistributedLeasing.ChaosEngineering</PackageId>
+    <Description>Chaos engineering support for DistributedLeasing library. Inject controlled failures to test resilience. FOR TESTING ONLY - NOT FOR PRODUCTION.</Description>
+    <PackageTags>distributed-leasing;chaos-engineering;testing;resilience;fault-injection</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DistributedLeasing.Core\DistributedLeasing.Core.csproj" />
+    <ProjectReference Include="..\DistributedLeasing.Abstractions\DistributedLeasing.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
