@@ -4,6 +4,8 @@ using DistributedLeasing.Azure.Blob;
 using FluentAssertions;
 using Xunit;
 
+#pragma warning disable CS0618 // Type or member is obsolete - Testing backward compatibility
+
 namespace DistributedLeasing.Azure.Blob.Tests;
 
 /// <summary>

@@ -46,7 +46,11 @@ class Program
         {
             StorageAccountUri = new Uri(storageAccountUri),
             ConnectionString = connectionString,
-            UseManagedIdentity = useManagedIdentity,
+            // Use new Authentication property instead of UseManagedIdentity
+            Authentication = useManagedIdentity ? new DistributedLeasing.Authentication.AuthenticationOptions
+            {
+                Mode = DistributedLeasing.Authentication.AuthenticationModes.Auto
+            } : null,
             ContainerName = "leader-election",
             CreateContainerIfNotExists = true,
             DefaultLeaseDuration = TimeSpan.FromSeconds(30),

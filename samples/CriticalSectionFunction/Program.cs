@@ -46,7 +46,14 @@ public class Program
                     }
                     
                     options.ConnectionString = connectionString;
-                    options.UseManagedIdentity = useManagedIdentity && !string.IsNullOrEmpty(storageAccountUri);
+                    // Use new Authentication property instead of UseManagedIdentity
+                    if (useManagedIdentity && !string.IsNullOrEmpty(storageAccountUri))
+                    {
+                        options.Authentication = new DistributedLeasing.Authentication.AuthenticationOptions
+                        {
+                            Mode = DistributedLeasing.Authentication.AuthenticationModes.Auto
+                        };
+                    }
                     options.ContainerName = config["DistributedLeasing:ContainerName"] ?? "leases";
                     options.CreateContainerIfNotExists = config.GetValue("DistributedLeasing:CreateContainerIfNotExists", true);
                     
