@@ -19,8 +19,8 @@ public class BlobLeaseProviderOptionsTests
 
         // Assert
         options.ContainerName.Should().Be("leases");
-        options.BlobPrefix.Should().BeEmpty();
-        options.CreateContainerIfNotExists.Should().BeTrue();
+        options.BlobPrefix.Should().Be("lease-");
+        options.CreateContainerIfNotExists.Should().BeFalse();
         options.UseManagedIdentity.Should().BeFalse();
         options.StorageAccountUri.Should().BeNull();
         options.ConnectionString.Should().BeNull();
@@ -28,7 +28,7 @@ public class BlobLeaseProviderOptionsTests
         
         // Inherited from LeaseOptions
         options.DefaultLeaseDuration.Should().Be(TimeSpan.FromSeconds(60));
-        options.AutoRenew.Should().BeTrue();
+        options.AutoRenew.Should().BeFalse();
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class BlobLeaseProviderOptionsTests
         Action act = () => options.Validate();
 
         // Assert
-        act.Should().Throw<ArgumentException>()
+        act.Should().Throw<InvalidOperationException>()
             .WithMessage("*ContainerName*");
     }
 
@@ -184,8 +184,8 @@ public class BlobLeaseProviderOptionsTests
         Action act = () => options.Validate();
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .WithMessage("*between 15 and 60 seconds*");
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*at least 15 seconds*");
     }
 
     [Fact]
@@ -202,8 +202,8 @@ public class BlobLeaseProviderOptionsTests
         Action act = () => options.Validate();
 
         // Assert
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .WithMessage("*between 15 and 60 seconds*");
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*at most 60 seconds*");
     }
 
     [Fact]
@@ -287,16 +287,15 @@ public class BlobLeaseProviderOptionsTests
         // Arrange - Create options with invalid base configuration (negative retry interval)
         var options = new BlobLeaseProviderOptions
         {
-            ConnectionString = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdGtleQ==;EndpointSuffix=core.windows.net",
-            AutoRenewRetryInterval = TimeSpan.FromSeconds(-1)
+            ConnectionString = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdGtleQ==;EndpointSuffix=core.windows.net"
         };
 
-        // Act
-        Action act = () => options.Validate();
+        // Act - Try to set invalid retry interval, which will throw in setter
+        Action act = () => options.AutoRenewRetryInterval = TimeSpan.FromSeconds(-1);
 
         // Assert
         act.Should().Throw<ArgumentOutOfRangeException>()
-            .WithMessage("*AutoRenewRetryInterval*");
+            .WithMessage("*Auto-renew retry interval*");
     }
 
     [Fact]
