@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <!-- Package-Specific Metadata -->
+    <PackageId>DistributedLeasing.Authentication</PackageId>
+    <Description>Enterprise-grade authentication library for DistributedLeasing. Provides automatic, configuration-driven authentication for Azure resources including Managed Identity, Workload Identity, Federated Credentials, and Service Principal authentication.</Description>
+    <PackageTags>distributed-leasing;authentication;azure;managed-identity;workload-identity;federated-credentials;service-principal;enterprise-auth;secretless</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Core" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>
