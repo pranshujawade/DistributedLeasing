@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <!-- Package-Specific Metadata -->
     <PackageId>DistributedLeasing.Azure.Redis</PackageId>
     <Description>Azure Managed Redis provider for the DistributedLeasing library. Implements distributed leasing using Redlock algorithm with managed identity support.</Description>

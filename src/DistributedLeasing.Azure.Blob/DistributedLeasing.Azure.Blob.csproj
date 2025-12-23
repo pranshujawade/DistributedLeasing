@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <!-- Package-Specific Metadata -->
     <PackageId>DistributedLeasing.Azure.Blob</PackageId>
     <Description>Azure Blob Storage provider for the DistributedLeasing library. Implements distributed leasing using native Azure Blob lease capabilities with managed identity support.</Description>

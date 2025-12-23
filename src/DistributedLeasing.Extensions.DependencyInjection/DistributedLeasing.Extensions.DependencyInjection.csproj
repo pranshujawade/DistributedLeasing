@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <!-- Package-Specific Metadata -->
     <PackageId>DistributedLeasing.Extensions.DependencyInjection</PackageId>
     <Description>Dependency injection extensions for the DistributedLeasing library. Provides service registration helpers for ASP.NET Core and other DI-enabled applications.</Description>

@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <!-- Package-Specific Metadata -->
     <PackageId>DistributedLeasing.Azure.Cosmos</PackageId>
     <Description>Azure Cosmos DB provider for the DistributedLeasing library. Implements distributed leasing using optimistic concurrency with ETag and managed identity support.</Description>

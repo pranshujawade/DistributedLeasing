@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <!-- Package-Specific Metadata -->
     <PackageId>DistributedLeasing.Abstractions</PackageId>
     <Description>Provider abstractions and base classes for the DistributedLeasing library. Implement these interfaces to create custom lease providers.</Description>

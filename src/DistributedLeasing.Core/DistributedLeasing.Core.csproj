@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <IsPackable>true</IsPackable>
     <!-- Package-Specific Metadata -->
     <PackageId>DistributedLeasing.Core</PackageId>
     <Description>Core abstractions and interfaces for the DistributedLeasing library. Provides fundamental lease management contracts for building distributed coordination systems.</Description>
