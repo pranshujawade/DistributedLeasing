@@ -3,9 +3,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Azure;
 using Azure.Storage.Blobs.Specialized;
-using DistributedLeasing.Azure.Blob.Internal.Abstractions;
-using DistributedLeasing.Core.Configuration;
-using DistributedLeasing.Core.Exceptions;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Contracts;
+using DistributedLeasing.Abstractions.Core;
+using DistributedLeasing.Abstractions.Configuration;
+using DistributedLeasing.Abstractions.Exceptions;
 
 namespace DistributedLeasing.Azure.Blob
 {

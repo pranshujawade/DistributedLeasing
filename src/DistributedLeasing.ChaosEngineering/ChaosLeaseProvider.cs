@@ -1,5 +1,5 @@
 using DistributedLeasing.Abstractions;
-using DistributedLeasing.Core;
+using DistributedLeasing.Abstractions;
 using DistributedLeasing.Core.Exceptions;
 
 namespace DistributedLeasing.ChaosEngineering;

@@ -1,4 +1,6 @@
-using DistributedLeasing.Azure.Blob.Internal.Abstractions;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Contracts;
+using DistributedLeasing.Abstractions.Core;
 
 namespace DistributedLeasing.Azure.Blob
 {

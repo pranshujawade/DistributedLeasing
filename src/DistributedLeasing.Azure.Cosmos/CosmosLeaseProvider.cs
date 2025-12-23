@@ -1,10 +1,10 @@
 using Azure.Core;
 using Azure.Identity;
-using DistributedLeasing.Azure.Cosmos.Internal.Abstractions;
-using DistributedLeasing.Azure.Cosmos.Internal.Authentication;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Contracts;
+using DistributedLeasing.Abstractions.Authentication;
 using DistributedLeasing.Azure.Cosmos.Models;
-using DistributedLeasing.Core;
-using DistributedLeasing.Core.Exceptions;
+using DistributedLeasing.Abstractions.Exceptions;
 using Microsoft.Azure.Cosmos;
 
 namespace DistributedLeasing.Azure.Cosmos;

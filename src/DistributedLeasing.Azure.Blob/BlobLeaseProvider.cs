@@ -8,10 +8,10 @@ using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
-using DistributedLeasing.Azure.Blob.Internal.Abstractions;
-using DistributedLeasing.Azure.Blob.Internal.Authentication;
-using DistributedLeasing.Core;
-using DistributedLeasing.Core.Exceptions;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Contracts;
+using DistributedLeasing.Abstractions.Authentication;
+using DistributedLeasing.Abstractions.Exceptions;
 using Microsoft.Extensions.Logging;
 
 namespace DistributedLeasing.Azure.Blob

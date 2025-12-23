@@ -1,7 +1,8 @@
 using Azure.Core;
 using Azure.Identity;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Authentication;
 using DistributedLeasing.Azure.Blob;
-using DistributedLeasing.Azure.Blob.Internal.Authentication;
 using FluentAssertions;
 using Xunit;
 

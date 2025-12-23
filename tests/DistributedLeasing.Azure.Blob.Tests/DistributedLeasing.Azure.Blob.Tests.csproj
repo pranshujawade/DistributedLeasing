@@ -26,7 +26,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DistributedLeasing.Azure.Blob\DistributedLeasing.Azure.Blob.csproj" />
-    <ProjectReference Include="..\..\src\DistributedLeasing.Core\DistributedLeasing.Core.csproj" />
   </ItemGroup>
 
 </Project>

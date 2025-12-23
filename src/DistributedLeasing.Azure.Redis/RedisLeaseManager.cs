@@ -1,4 +1,6 @@
-using DistributedLeasing.Azure.Redis.Internal.Abstractions;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Contracts;
+using DistributedLeasing.Abstractions.Core;
 using StackExchange.Redis;
 
 namespace DistributedLeasing.Azure.Redis;
@@ -22,14 +24,13 @@ internal class RedisLeaseManager : LeaseManagerBase, IDisposable
     /// <param name="options">Configuration options for the Redis provider.</param>
     /// <exception cref="ArgumentNullException">Thrown when options is null.</exception>
     /// <remarks>
-    /// <strong>Note:</strong> This constructor uses the obsolete sync initialization path.
+    /// <strong>Warning:</strong> This constructor uses synchronous initialization which may not be suitable for all scenarios.
     /// For production use, consider using <see cref="RedisLeaseProviderFactory.CreateAsync"/>  
     /// followed by creating the manager with the provider constructor.
     /// </remarks>
-#pragma warning disable CS0618 // Type or member is obsolete
+    [Obsolete("Use RedisLeaseProviderFactory.CreateAsync() for proper async initialization. This constructor will be removed in v3.0.0.")]
     public RedisLeaseManager(RedisLeaseProviderOptions options)
         : base(new RedisLeaseProvider(options), options)
-#pragma warning restore CS0618 // Type or member is obsolete
     {
         _provider = (RedisLeaseProvider)Provider;
         _ownsProvider = true;

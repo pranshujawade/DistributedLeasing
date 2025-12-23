@@ -1,7 +1,8 @@
-using DistributedLeasing.Azure.Redis.Internal.Abstractions;
-using DistributedLeasing.Core;
-using DistributedLeasing.Core.Configuration;
-using DistributedLeasing.Core.Exceptions;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Configuration;
+using DistributedLeasing.Abstractions.Contracts;
+using DistributedLeasing.Abstractions.Core;
+using DistributedLeasing.Abstractions.Exceptions;
 using StackExchange.Redis;
 
 namespace DistributedLeasing.Azure.Redis;

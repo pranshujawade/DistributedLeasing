@@ -1,5 +1,5 @@
 using System;
-using DistributedLeasing.Core;
+using DistributedLeasing.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -31,7 +31,7 @@ namespace DistributedLeasing.Azure.Redis
             {
                 var options = new RedisLeaseProviderOptions();
                 configure(options);
-                return RedisLeaseManagerFactory.Create(options);
+                return RedisLeaseManagerFactory.CreateAsync(options).GetAwaiter().GetResult();
             });
 
             return services;
@@ -58,7 +58,7 @@ namespace DistributedLeasing.Azure.Redis
             {
                 var options = new RedisLeaseProviderOptions();
                 configuration.Bind(options);
-                return RedisLeaseManagerFactory.Create(options);
+                return RedisLeaseManagerFactory.CreateAsync(options).GetAwaiter().GetResult();
             });
 
             return services;

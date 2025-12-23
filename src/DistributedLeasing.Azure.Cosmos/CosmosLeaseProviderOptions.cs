@@ -1,6 +1,7 @@
 using Azure.Core;
-using DistributedLeasing.Azure.Cosmos.Internal.Authentication;
-using DistributedLeasing.Core.Configuration;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Authentication;
+using DistributedLeasing.Abstractions.Configuration;
 
 namespace DistributedLeasing.Azure.Cosmos;
 

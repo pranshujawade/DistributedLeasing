@@ -1,4 +1,5 @@
-using DistributedLeasing.Core;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Contracts;
 
 namespace DistributedLeasing.Azure.Redis
 {
@@ -18,9 +19,10 @@ namespace DistributedLeasing.Azure.Redis
         /// <returns>An ILeaseManager instance backed by Azure Redis.</returns>
         /// <exception cref="System.ArgumentNullException">Thrown when options is null.</exception>
         /// <exception cref="System.InvalidOperationException">Thrown when options validation fails.</exception>
-        public static ILeaseManager Create(RedisLeaseProviderOptions options)
+        public static async Task<ILeaseManager> CreateAsync(RedisLeaseProviderOptions options)
         {
-            return new RedisLeaseManager(options);
+            var provider = await RedisLeaseProviderFactory.CreateAsync(options);
+            return new RedisLeaseManager(provider, options);
         }
     }
 }

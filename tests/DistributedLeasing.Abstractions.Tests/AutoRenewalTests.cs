@@ -1,8 +1,9 @@
 using DistributedLeasing.Abstractions;
-using DistributedLeasing.Core;
-using DistributedLeasing.Core.Configuration;
-using DistributedLeasing.Core.Events;
-using DistributedLeasing.Core.Exceptions;
+using DistributedLeasing.Abstractions.Configuration;
+using DistributedLeasing.Abstractions.Contracts;
+using DistributedLeasing.Abstractions.Core;
+using DistributedLeasing.Abstractions.Events;
+using DistributedLeasing.Abstractions.Exceptions;
 using FluentAssertions;
 using Xunit;
 

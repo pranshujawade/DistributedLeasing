@@ -1,9 +1,9 @@
 using Azure.Core;
 using Azure.Identity;
-using DistributedLeasing.Azure.Redis.Internal.Abstractions;
-using DistributedLeasing.Azure.Redis.Internal.Authentication;
-using DistributedLeasing.Core;
-using DistributedLeasing.Core.Exceptions;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Authentication;
+using DistributedLeasing.Abstractions.Contracts;
+using DistributedLeasing.Abstractions.Exceptions;
 using StackExchange.Redis;
 
 namespace DistributedLeasing.Azure.Redis;

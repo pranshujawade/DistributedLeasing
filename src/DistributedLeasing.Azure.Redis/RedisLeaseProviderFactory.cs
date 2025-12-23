@@ -1,6 +1,7 @@
 using Azure.Core;
 using Azure.Identity;
-using DistributedLeasing.Azure.Redis.Internal.Authentication;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Authentication;
 using StackExchange.Redis;
 
 namespace DistributedLeasing.Azure.Redis;

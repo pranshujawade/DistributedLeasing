@@ -1,4 +1,6 @@
-using DistributedLeasing.Azure.Cosmos.Internal.Abstractions;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Contracts;
+using DistributedLeasing.Abstractions.Core;
 using Microsoft.Azure.Cosmos;
 
 namespace DistributedLeasing.Azure.Cosmos;

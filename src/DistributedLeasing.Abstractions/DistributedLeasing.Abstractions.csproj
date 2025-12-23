@@ -1,22 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
     <!-- Package-Specific Metadata -->
     <PackageId>DistributedLeasing.Abstractions</PackageId>
-    <Description>[DEPRECATED] This package has been deprecated as of v2.0.0. Provider abstractions are now internal implementation details. Use the provider-specific packages (DistributedLeasing.Azure.Blob, DistributedLeasing.Azure.Cosmos, DistributedLeasing.Azure.Redis) directly.</Description>
-    <PackageTags>distributed-leasing;leader-election;distributed-lock;provider;abstraction;deprecated</PackageTags>
-    <PackageDeprecated>true</PackageDeprecated>
-    <DeprecationMessage>This package is deprecated. Provider abstractions are now internal to each provider package. Use DistributedLeasing.Azure.Blob, DistributedLeasing.Azure.Cosmos, or DistributedLeasing.Azure.Redis instead.</DeprecationMessage>
+    <Description>Framework for distributed leasing with Azure provider support. Contains contracts, base implementations, configuration, events, exceptions, observability, and Azure authentication for building distributed coordination systems.</Description>
+    <PackageTags>distributed-leasing;abstractions;provider;authentication;azure;leader-election;distributed-coordination</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Core" />
     <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\DistributedLeasing.Core\DistributedLeasing.Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,8 @@
 using System;
 using Azure.Core;
-using DistributedLeasing.Azure.Blob.Internal.Authentication;
-using DistributedLeasing.Core.Configuration;
+using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Authentication;
+using DistributedLeasing.Abstractions.Configuration;
 
 namespace DistributedLeasing.Azure.Blob
 {
