@@ -1,9 +1,15 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using DistributedLeasing.Abstractions.Configuration;
 using DistributedLeasing.Abstractions.Contracts;
 using DistributedLeasing.Abstractions.Exceptions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+#if NET8_0_OR_GREATER
+using DistributedLeasing.Abstractions.Observability;
+#endif
 
 namespace DistributedLeasing.Abstractions.Core
 {
@@ -31,6 +37,11 @@ namespace DistributedLeasing.Abstractions.Core
         /// Gets the configuration options for lease management.
         /// </summary>
         protected LeaseOptions Options { get; }
+        
+        /// <summary>
+        /// Gets or sets the logger for structured logging. If not set, uses NullLogger.
+        /// </summary>
+        protected ILogger Logger { get; set; } = NullLogger.Instance;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="LeaseManagerBase"/> class.
@@ -50,7 +61,7 @@ namespace DistributedLeasing.Abstractions.Core
         }
 
         /// <inheritdoc/>
-        public virtual Task<ILease?> TryAcquireAsync(
+        public virtual async Task<ILease?> TryAcquireAsync(
             string leaseName,
             TimeSpan? duration = null,
             CancellationToken cancellationToken = default)
@@ -60,7 +71,45 @@ namespace DistributedLeasing.Abstractions.Core
             var effectiveDuration = duration ?? Options.DefaultLeaseDuration;
             ValidateDuration(effectiveDuration);
 
-            return Provider.AcquireLeaseAsync(leaseName, effectiveDuration, cancellationToken);
+#if NET5_0_OR_GREATER
+            using var activity = LeasingActivitySource.Source.StartActivity(LeasingActivitySource.Operations.TryAcquire);
+            activity?.SetTag(LeasingActivitySource.Tags.LeaseName, leaseName);
+            activity?.SetTag(LeasingActivitySource.Tags.Provider, Provider.GetType().Name);
+            activity?.SetTag(LeasingActivitySource.Tags.Duration, effectiveDuration.TotalSeconds);
+            activity?.SetTag(LeasingActivitySource.Tags.AutoRenew, Options.AutoRenew);
+#endif
+
+            try
+            {
+                var lease = await Provider.AcquireLeaseAsync(leaseName, effectiveDuration, cancellationToken).ConfigureAwait(false);
+                
+#if NET5_0_OR_GREATER
+                if (lease != null)
+                {
+                    activity?.SetTag(LeasingActivitySource.Tags.LeaseId, lease.LeaseId);
+                    activity?.SetTag(LeasingActivitySource.Tags.Result, LeasingActivitySource.Results.Success);
+                }
+                else
+                {
+                    activity?.SetTag(LeasingActivitySource.Tags.Result, LeasingActivitySource.Results.AlreadyHeld);
+                }
+#endif
+                
+                return lease;
+            }
+            catch (Exception ex)
+            {
+#if NET5_0_OR_GREATER
+                activity?.SetTag(LeasingActivitySource.Tags.Result, LeasingActivitySource.Results.Failure);
+                activity?.SetTag(LeasingActivitySource.Tags.ExceptionType, ex.GetType().Name);
+                activity?.SetTag(LeasingActivitySource.Tags.ExceptionMessage, ex.Message);
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+#else
+                // Variable ex used only in NET5_0_OR_GREATER for tracing
+                _ = ex;
+#endif
+                throw;
+            }
         }
 
         /// <inheritdoc/>
@@ -78,107 +127,181 @@ namespace DistributedLeasing.Abstractions.Core
             var effectiveTimeout = timeout ?? Options.AcquireTimeout;
             ValidateTimeout(effectiveTimeout);
 
+#if NET5_0_OR_GREATER
+            using var activity = LeasingActivitySource.Source.StartActivity(LeasingActivitySource.Operations.Acquire);
+            activity?.SetTag(LeasingActivitySource.Tags.LeaseName, leaseName);
+            activity?.SetTag(LeasingActivitySource.Tags.Provider, Provider.GetType().Name);
+            activity?.SetTag(LeasingActivitySource.Tags.Duration, effectiveDuration.TotalSeconds);
+            activity?.SetTag(LeasingActivitySource.Tags.Timeout, effectiveTimeout.TotalSeconds);
+            activity?.SetTag(LeasingActivitySource.Tags.AutoRenew, Options.AutoRenew);
+#endif
+
             var startTime = DateTimeOffset.UtcNow;
             var retryInterval = Options.AcquireRetryInterval;
+            
+            Logger.LogDebug("Attempting to acquire lease '{LeaseName}' with duration {Duration}s and timeout {Timeout}s",
+                leaseName, effectiveDuration.TotalSeconds, effectiveTimeout.TotalSeconds);
             
             // Safety valve: even with infinite timeout, limit max attempts to prevent runaway loops
             const int MaxAttemptsWithInfiniteTimeout = 10000;
             int attemptCount = 0;
 
-            while (true)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                
-                // Circuit breaker: prevent infinite loops even with Timeout.InfiniteTimeSpan
-                if (effectiveTimeout == Timeout.InfiniteTimeSpan)
+                while (true)
                 {
-                    if (++attemptCount > MaxAttemptsWithInfiniteTimeout)
-                    {
-                        throw new LeaseAcquisitionException(
-                            $"Could not acquire lease '{leaseName}' after {MaxAttemptsWithInfiniteTimeout} attempts (safety limit).")
-                        {
-                            LeaseName = leaseName
-                        };
-                    }
-                }
-
-                // Check if we've exceeded the timeout
-                if (effectiveTimeout != Timeout.InfiniteTimeSpan)
-                {
-                    var elapsed = DateTimeOffset.UtcNow - startTime;
-                    if (elapsed >= effectiveTimeout)
-                    {
-                        throw new LeaseAcquisitionException(
-                            $"Could not acquire lease '{leaseName}' within the specified timeout of {effectiveTimeout}.")
-                        {
-                            LeaseName = leaseName
-                        };
-                    }
-                }
-
-                // Try to acquire the lease
-                try
-                {
-                    var lease = await Provider.AcquireLeaseAsync(
-                        leaseName,
-                        effectiveDuration,
-                        cancellationToken).ConfigureAwait(false);
-
-                    if (lease != null)
-                    {
-                        return lease;
-                    }
-                }
-                catch (LeaseConflictException)
-                {
-                    // Normal competition - continue retrying
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex) when (ex is not LeaseException)
-                {
-                    throw new LeaseAcquisitionException(
-                        $"Unexpected error while acquiring lease '{leaseName}'.",
-                        ex)
-                    {
-                        LeaseName = leaseName
-                    };
-                }
-
-                // Calculate remaining time for this retry
-                TimeSpan delayDuration;
-                if (effectiveTimeout != Timeout.InfiniteTimeSpan)
-                {
-                    var elapsed = DateTimeOffset.UtcNow - startTime;
-                    var remaining = effectiveTimeout - elapsed;
+                    cancellationToken.ThrowIfCancellationRequested();
                     
-                    if (remaining <= TimeSpan.Zero)
+                    // Circuit breaker: prevent infinite loops even with Timeout.InfiniteTimeSpan
+                    if (effectiveTimeout == Timeout.InfiniteTimeSpan)
                     {
+                        if (++attemptCount > MaxAttemptsWithInfiniteTimeout)
+                        {
+                            throw new LeaseAcquisitionException(
+                                $"Could not acquire lease '{leaseName}' after {MaxAttemptsWithInfiniteTimeout} attempts (safety limit).")
+                            {
+                                LeaseName = leaseName
+                            };
+                        }
+                    }
+
+                    // Check if we've exceeded the timeout
+                    if (effectiveTimeout != Timeout.InfiniteTimeSpan)
+                    {
+                        var elapsed = DateTimeOffset.UtcNow - startTime;
+                        if (elapsed >= effectiveTimeout)
+                        {
+                            throw new LeaseAcquisitionException(
+                                $"Could not acquire lease '{leaseName}' within the specified timeout of {effectiveTimeout}.")
+                            {
+                                LeaseName = leaseName
+                            };
+                        }
+                    }
+
+                    // Try to acquire the lease
+                    try
+                    {
+#if NET8_0_OR_GREATER
+                        var sw = Stopwatch.StartNew();
+#endif
+                        var lease = await Provider.AcquireLeaseAsync(
+                            leaseName,
+                            effectiveDuration,
+                            cancellationToken).ConfigureAwait(false);
+
+                        if (lease != null)
+                        {
+#if NET8_0_OR_GREATER
+                            sw.Stop();
+                            var providerName = Provider.GetType().Name;
+                            LeasingMetrics.LeaseAcquisitions.Add(1, 
+                                new("provider", providerName),
+                                new("lease_name", leaseName),
+                                new("result", "success"));
+                            LeasingMetrics.LeaseAcquisitionDuration.Record(sw.Elapsed.TotalMilliseconds,
+                                new("provider", providerName),
+                                new("result", "success"));
+#endif
+#if NET5_0_OR_GREATER
+                            activity?.SetTag(LeasingActivitySource.Tags.LeaseId, lease.LeaseId);
+                            activity?.SetTag(LeasingActivitySource.Tags.Result, LeasingActivitySource.Results.Success);
+#endif
+                            Logger.LogInformation("Successfully acquired lease '{LeaseName}' with ID '{LeaseId}' after {Elapsed}ms",
+                                leaseName, lease.LeaseId, (DateTimeOffset.UtcNow - startTime).TotalMilliseconds);
+                            return lease;
+                        }
+                    }
+                    catch (LeaseConflictException)
+                    {
+#if NET8_0_OR_GREATER
+                        var providerName = Provider.GetType().Name;
+                        LeasingMetrics.LeaseAcquisitions.Add(1,
+                            new("provider", providerName),
+                            new("lease_name", leaseName),
+                            new("result", "conflict"));
+#endif
+                        Logger.LogDebug("Lease '{LeaseName}' is currently held, will retry", leaseName);
+                        // Normal competition - continue retrying
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex) when (ex is not LeaseException)
+                    {
+#if NET8_0_OR_GREATER
+                        var providerName = Provider.GetType().Name;
+                        LeasingMetrics.LeaseAcquisitions.Add(1,
+                            new("provider", providerName),
+                            new("lease_name", leaseName),
+                            new("result", "failure"));
+#endif
+                        Logger.LogError(ex, "Unexpected error while acquiring lease '{LeaseName}'", leaseName);
                         throw new LeaseAcquisitionException(
-                            $"Could not acquire lease '{leaseName}' within the specified timeout of {effectiveTimeout}.")
+                            $"Unexpected error while acquiring lease '{leaseName}'.",
+                            ex)
                         {
                             LeaseName = leaseName
                         };
                     }
-                    
-                    delayDuration = remaining < retryInterval ? remaining : retryInterval;
+
+                    // Calculate remaining time for this retry
+                    TimeSpan delayDuration;
+                    if (effectiveTimeout != Timeout.InfiniteTimeSpan)
+                    {
+                        var elapsed = DateTimeOffset.UtcNow - startTime;
+                        var remaining = effectiveTimeout - elapsed;
+                        
+                        if (remaining <= TimeSpan.Zero)
+                        {
+                            throw new LeaseAcquisitionException(
+                                $"Could not acquire lease '{leaseName}' within the specified timeout of {effectiveTimeout}.")
+                            {
+                                LeaseName = leaseName
+                            };
+                        }
+                        
+                        delayDuration = remaining < retryInterval ? remaining : retryInterval;
+                    }
+                    else
+                    {
+                        delayDuration = retryInterval;
+                    }
+
+                    // Wait before retrying
+                    try
+                    {
+                        await Task.Delay(delayDuration, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+#if NET5_0_OR_GREATER
+                activity?.SetTag(LeasingActivitySource.Tags.Result, 
+                    ex is LeaseAcquisitionException ? LeasingActivitySource.Results.Timeout : LeasingActivitySource.Results.Failure);
+                activity?.SetTag(LeasingActivitySource.Tags.ExceptionType, ex.GetType().Name);
+                activity?.SetTag(LeasingActivitySource.Tags.ExceptionMessage, ex.Message);
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+#else
+                // Variable ex used only in NET5_0_OR_GREATER for tracing
+                _ = ex;
+#endif
+                if (ex is LeaseAcquisitionException)
+                {
+                    Logger.LogWarning("Failed to acquire lease '{LeaseName}' within timeout of {Timeout}s",
+                        leaseName, effectiveTimeout.TotalSeconds);
                 }
                 else
                 {
-                    delayDuration = retryInterval;
+                    Logger.LogError(ex, "Failed to acquire lease '{LeaseName}' due to error", leaseName);
                 }
-
-                // Wait before retrying
-                try
-                {
-                    await Task.Delay(delayDuration, cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
+                throw;
             }
         }
 

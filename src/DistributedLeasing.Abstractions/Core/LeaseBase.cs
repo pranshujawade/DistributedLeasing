@@ -6,6 +6,8 @@ using DistributedLeasing.Abstractions.Configuration;
 using DistributedLeasing.Abstractions.Contracts;
 using DistributedLeasing.Abstractions.Events;
 using DistributedLeasing.Abstractions.Exceptions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 #if NET5_0_OR_GREATER
 using DistributedLeasing.Abstractions.Observability;
 #endif
@@ -44,6 +46,11 @@ namespace DistributedLeasing.Abstractions.Core
         private readonly SemaphoreSlim _renewalLock = new SemaphoreSlim(1, 1);
         private int _renewalFailureCount;
         private DateTimeOffset _lastSuccessfulRenewal;
+        
+        /// <summary>
+        /// Gets or sets the logger for structured logging. If not set, uses NullLogger.
+        /// </summary>
+        protected ILogger Logger { get; set; } = NullLogger.Instance;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="LeaseBase"/> class.
@@ -101,6 +108,11 @@ namespace DistributedLeasing.Abstractions.Core
             {
                 StartAutoRenewal();
             }
+            
+#if NET8_0_OR_GREATER
+            // Track active lease count for observability
+            ActiveLeaseTracker.Increment();
+#endif
         }
 
         /// <inheritdoc/>
@@ -179,7 +191,33 @@ namespace DistributedLeasing.Abstractions.Core
                 };
             }
 
-            await PerformRenewalAsync(cancellationToken).ConfigureAwait(false);
+#if NET5_0_OR_GREATER
+            using var activity = LeasingActivitySource.Source.StartActivity(LeasingActivitySource.Operations.Renew);
+            activity?.SetTag(LeasingActivitySource.Tags.LeaseName, LeaseName);
+            activity?.SetTag(LeasingActivitySource.Tags.LeaseId, LeaseId);
+#endif
+
+            try
+            {
+                await PerformRenewalAsync(cancellationToken).ConfigureAwait(false);
+                
+#if NET5_0_OR_GREATER
+                activity?.SetTag(LeasingActivitySource.Tags.Result, LeasingActivitySource.Results.Success);
+#endif
+            }
+            catch (Exception ex)
+            {
+#if NET5_0_OR_GREATER
+                activity?.SetTag(LeasingActivitySource.Tags.Result, LeasingActivitySource.Results.Failure);
+                activity?.SetTag(LeasingActivitySource.Tags.ExceptionType, ex.GetType().Name);
+                activity?.SetTag(LeasingActivitySource.Tags.ExceptionMessage, ex.Message);
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+#else
+                // Variable ex used only in NET5_0_OR_GREATER for tracing
+                _ = ex;
+#endif
+                throw;
+            }
         }
 
         /// <inheritdoc/>
@@ -188,15 +226,33 @@ namespace DistributedLeasing.Abstractions.Core
             if (_isDisposed)
                 return; // Already released/disposed
 
+#if NET5_0_OR_GREATER
+            using var activity = LeasingActivitySource.Source.StartActivity(LeasingActivitySource.Operations.Release);
+            activity?.SetTag(LeasingActivitySource.Tags.LeaseName, LeaseName);
+            activity?.SetTag(LeasingActivitySource.Tags.LeaseId, LeaseId);
+#endif
+
             // Stop auto-renewal before releasing
             StopAutoRenewal();
 
             try
             {
                 await ReleaseLeaseAsync(cancellationToken).ConfigureAwait(false);
+                
+#if NET5_0_OR_GREATER
+                activity?.SetTag(LeasingActivitySource.Tags.Result, LeasingActivitySource.Results.Success);
+#endif
             }
-            catch
+            catch (Exception ex)
             {
+#if NET5_0_OR_GREATER
+                activity?.SetTag(LeasingActivitySource.Tags.Result, LeasingActivitySource.Results.Failure);
+                activity?.SetTag(LeasingActivitySource.Tags.ExceptionType, ex.GetType().Name);
+                activity?.SetTag(LeasingActivitySource.Tags.ExceptionMessage, ex.Message);
+#else
+                // Variable ex used only in NET5_0_OR_GREATER for tracing
+                _ = ex;
+#endif
                 // Suppress exceptions to make ReleaseAsync idempotent
                 // Lease will expire naturally if release fails
             }
@@ -228,6 +284,11 @@ namespace DistributedLeasing.Abstractions.Core
             {
                 _isDisposed = true;
                 _renewalLock.Dispose();
+                
+#if NET8_0_OR_GREATER
+                // Track active lease count for observability
+                ActiveLeaseTracker.Decrement();
+#endif
             }
 
             GC.SuppressFinalize(this);
@@ -453,22 +514,60 @@ namespace DistributedLeasing.Abstractions.Core
             await _renewalLock.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+#if NET8_0_OR_GREATER
+                var sw = Stopwatch.StartNew();
+#endif
                 var beforeExpiration = ExpiresAt;
                 
-                // Call provider-specific renewal
-                await RenewLeaseAsync(cancellationToken).ConfigureAwait(false);
-                
-                var afterExpiration = ExpiresAt;
-                
-                // Update tracking
-                lock (_lock)
+                try
                 {
-                    _renewalCount++;
-                    _lastSuccessfulRenewal = DateTimeOffset.UtcNow;
+                    // Call provider-specific renewal
+                    await RenewLeaseAsync(cancellationToken).ConfigureAwait(false);
+                    
+                    var afterExpiration = ExpiresAt;
+                    
+                    // Update tracking
+                    lock (_lock)
+                    {
+                        _renewalCount++;
+                        _lastSuccessfulRenewal = DateTimeOffset.UtcNow;
+                    }
+                    
+#if NET8_0_OR_GREATER
+                    sw.Stop();
+                    LeasingMetrics.LeaseRenewals.Add(1,
+                        new("lease_name", LeaseName),
+                        new("result", "success"));
+                    LeasingMetrics.LeaseRenewalDuration.Record(sw.Elapsed.TotalMilliseconds,
+                        new("lease_name", LeaseName),
+                        new("result", "success"));
+#endif
+                    
+                    Logger.LogDebug("Successfully renewed lease '{LeaseName}' (ID: '{LeaseId}'), count: {RenewalCount}, new expiration: {Expiration}",
+                        LeaseName, LeaseId, _renewalCount, afterExpiration);
+                    
+                    // Raise event
+                    OnLeaseRenewed(afterExpiration, afterExpiration - beforeExpiration);
                 }
-                
-                // Raise event
-                OnLeaseRenewed(afterExpiration, afterExpiration - beforeExpiration);
+                catch (Exception)
+                {
+#if NET8_0_OR_GREATER
+                    sw?.Stop();
+                    LeasingMetrics.LeaseRenewals.Add(1,
+                        new("lease_name", LeaseName),
+                        new("result", "failure"));
+                    LeasingMetrics.LeaseRenewalFailures.Add(1, new KeyValuePair<string, object?>("lease_name", LeaseName));
+                    if (sw != null)
+                    {
+                        LeasingMetrics.LeaseRenewalDuration.Record(sw.Elapsed.TotalMilliseconds,
+                            new("lease_name", LeaseName),
+                            new("result", "failure"));
+                    }
+#endif
+                    Logger.LogWarning("Failed to renew lease '{LeaseName}' (ID: '{LeaseId}'), renewal count: {RenewalCount}",
+                        LeaseName, LeaseId, _renewalCount);
+                    throw;
+                }
             }
             finally
             {
@@ -530,6 +629,16 @@ namespace DistributedLeasing.Abstractions.Core
             
             // Stop auto-renewal without waiting to avoid deadlock when called from renewal task
             StopAutoRenewal(waitForCompletion: false);
+            
+#if NET8_0_OR_GREATER
+            // Record lease lost metric
+            LeasingMetrics.LeasesLost.Add(1,
+                new("lease_name", LeaseName),
+                new("reason", reason));
+#endif
+            
+            Logger.LogWarning("Lease '{LeaseName}' (ID: '{LeaseId}') lost: {Reason}",
+                LeaseName, LeaseId, reason);
             
             try
             {

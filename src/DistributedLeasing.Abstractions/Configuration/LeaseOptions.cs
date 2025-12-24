@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace DistributedLeasing.Abstractions.Configuration
 {
@@ -19,7 +20,21 @@ namespace DistributedLeasing.Abstractions.Configuration
         private int _autoRenewMaxRetries = 3;
         private double _autoRenewSafetyThreshold = 0.9;
 
-
+        /// <summary>
+        /// Gets or sets custom metadata to be stored with the lease.
+        /// </summary>
+        /// <value>
+        /// A dictionary of key-value pairs for custom metadata. Default is an empty dictionary.
+        /// </value>
+        /// <remarks>
+        /// Metadata storage is provider-specific:
+        /// - BlobLeaseProvider: Stored in blob metadata properties
+        /// - RedisLeaseProvider: Stored in Redis hash fields
+        /// - CosmosLeaseProvider: Embedded in the lease document
+        /// Keys and values should be provider-compatible (e.g., avoid special characters).
+        /// Maximum metadata size varies by provider (Azure Blob: 8KB total, Redis: no practical limit, Cosmos: 2MB document).
+        /// </remarks>
+        public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
 
         /// <summary>
         /// Gets or sets the default duration for acquired leases.

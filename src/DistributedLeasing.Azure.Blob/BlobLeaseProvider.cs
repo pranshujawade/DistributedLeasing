@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure;
@@ -71,6 +73,13 @@ namespace DistributedLeasing.Azure.Blob
                 // Get or create the blob for this lease
                 var blobClient = await GetOrCreateBlobAsync(leaseName, cancellationToken)
                     .ConfigureAwait(false);
+
+                // Update blob metadata with user-provided metadata before acquiring lease
+                if (_options.Metadata != null && _options.Metadata.Any())
+                {
+                    await UpdateBlobMetadataAsync(blobClient, leaseName, cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
                 // Attempt to acquire the lease
                 var leaseClient = blobClient.GetBlobLeaseClient();
@@ -251,8 +260,8 @@ namespace DistributedLeasing.Azure.Blob
 
                 if (!exists.Value)
                 {
-                    // Create an empty blob with metadata
-                    var metadata = new System.Collections.Generic.Dictionary<string, string>
+                    // Create an empty blob with base metadata
+                    var metadata = new Dictionary<string, string>
                     {
                         { "leaseName", leaseName },
                         { "createdAt", DateTimeOffset.UtcNow.ToString("o") }
@@ -272,6 +281,46 @@ namespace DistributedLeasing.Azure.Blob
             }
 
             return blobClient;
+        }
+
+        /// <summary>
+        /// Updates blob metadata with user-provided metadata from LeaseOptions.
+        /// </summary>
+        private async Task UpdateBlobMetadataAsync(
+            BlobClient blobClient,
+            string leaseName,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Get existing metadata
+                var properties = await blobClient.GetPropertiesAsync(
+                    conditions: null, 
+                    cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+                
+                var metadata = new Dictionary<string, string>(properties.Value.Metadata);
+
+                // Add or update user metadata with "lease_" prefix to avoid conflicts
+                foreach (var kvp in _options.Metadata)
+                {
+                    metadata[$"lease_{kvp.Key}"] = kvp.Value;
+                }
+
+                // Update last modified timestamp
+                metadata["lastModified"] = DateTimeOffset.UtcNow.ToString("o");
+
+                // Set metadata
+                await blobClient.SetMetadataAsync(
+                    metadata: metadata, 
+                    conditions: null, 
+                    cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (RequestFailedException ex) when (ex.Status == 409)
+            {
+                // Metadata update conflict - not critical, continue with lease acquisition
+            }
         }
 
         /// <summary>

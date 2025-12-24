@@ -5,6 +5,7 @@ using DistributedLeasing.Abstractions.Authentication;
 using DistributedLeasing.Abstractions.Contracts;
 using DistributedLeasing.Abstractions.Exceptions;
 using StackExchange.Redis;
+using System.Linq;
 
 namespace DistributedLeasing.Azure.Redis;
 
@@ -22,39 +23,6 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
     private readonly IDatabase _database;
     private readonly bool _ownsConnection;
     private bool _disposed;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RedisLeaseProvider"/> class.
-    /// </summary>
-    /// <param name="options">Configuration options for the provider.</param>
-    /// <exception cref="ArgumentNullException">Thrown when options is null.</exception>
-    /// <remarks>
-    /// <para>
-    /// <strong>DEPRECATED:</strong> This constructor performs synchronous blocking on async operations
-    /// during connection initialization, which can cause deadlocks in some contexts.
-    /// </para>
-    /// <para>
-    /// <strong>Recommended:</strong> Use <see cref="RedisLeaseProviderFactory.CreateAsync"/> instead
-    /// for proper async initialization.
-    /// </para>
-    /// <code>
-    /// // Instead of:
-    /// // var provider = new RedisLeaseProvider(options);
-    /// 
-    /// // Use:
-    /// var provider = await RedisLeaseProviderFactory.CreateAsync(options);
-    /// </code>
-    /// </remarks>
-    [Obsolete("Use RedisLeaseProviderFactory.CreateAsync() for proper async initialization to avoid deadlock risks. This constructor will be removed in version 2.0.0.", false)]
-    public RedisLeaseProvider(RedisLeaseProviderOptions options)
-    {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        _options.Validate();
-
-        _connection = CreateConnection(options);
-        _database = _connection.GetDatabase(_options.Database);
-        _ownsConnection = true;
-    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RedisLeaseProvider"/> class with an existing connection.
@@ -111,17 +79,39 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
 
         try
         {
-            // Use SET with NX (not exists) and PX (millisecond expiry) for atomic acquire
-            var acquired = await _database.StringSetAsync(
-                redisKey,
-                leaseId,
-                duration,
-                When.NotExists,
-                CommandFlags.None);
+            // Use Lua script for atomic acquire with hash-based metadata storage
+            const string acquireScript = @"
+                if redis.call('exists', KEYS[1]) == 0 then
+                    redis.call('hset', KEYS[1], 'leaseId', ARGV[1])
+                    redis.call('hset', KEYS[1], 'acquiredAt', ARGV[2])
+                    redis.call('pexpire', KEYS[1], ARGV[3])
+                    return 1
+                else
+                    return 0
+                end";
 
-            if (!acquired)
+            var acquired = (int)await _database.ScriptEvaluateAsync(
+                acquireScript,
+                new RedisKey[] { redisKey },
+                new RedisValue[] { 
+                    leaseId, 
+                    now.ToString("o"),
+                    (long)duration.TotalMilliseconds 
+                });
+
+            if (acquired == 0)
             {
                 return null;
+            }
+
+            // Store user metadata if provided
+            if (_options.Metadata != null && _options.Metadata.Any())
+            {
+                var hashEntries = _options.Metadata
+                    .Select(kvp => new HashEntry($"meta_{kvp.Key}", kvp.Value))
+                    .ToArray();
+                
+                await _database.HashSetAsync(redisKey, hashEntries);
             }
 
             // Account for clock drift (Redlock algorithm)
@@ -255,8 +245,9 @@ public class RedisLeaseProvider : ILeaseProvider, IDisposable
     {
         try
         {
+            // Updated script to work with hash-based storage
             const string releaseScript = @"
-                if redis.call('get', KEYS[1]) == ARGV[1] then
+                if redis.call('hget', KEYS[1], 'leaseId') == ARGV[1] then
                     return redis.call('del', KEYS[1])
                 else
                     return 0

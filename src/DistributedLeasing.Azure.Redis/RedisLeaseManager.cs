@@ -19,24 +19,6 @@ internal class RedisLeaseManager : LeaseManagerBase, IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="RedisLeaseManager"/> class.
-    /// </summary>
-    /// <param name="options">Configuration options for the Redis provider.</param>
-    /// <exception cref="ArgumentNullException">Thrown when options is null.</exception>
-    /// <remarks>
-    /// <strong>Warning:</strong> This constructor uses synchronous initialization which may not be suitable for all scenarios.
-    /// For production use, consider using <see cref="RedisLeaseProviderFactory.CreateAsync"/>  
-    /// followed by creating the manager with the provider constructor.
-    /// </remarks>
-    [Obsolete("Use RedisLeaseProviderFactory.CreateAsync() for proper async initialization. This constructor will be removed in v3.0.0.")]
-    public RedisLeaseManager(RedisLeaseProviderOptions options)
-        : base(new RedisLeaseProvider(options), options)
-    {
-        _provider = (RedisLeaseProvider)Provider;
-        _ownsProvider = true;
-    }
-
-    /// <summary>
     /// Initializes a new instance of the <see cref="RedisLeaseManager"/> class with an existing connection.
     /// </summary>
     /// <param name="connection">An existing Redis connection multiplexer.</param>

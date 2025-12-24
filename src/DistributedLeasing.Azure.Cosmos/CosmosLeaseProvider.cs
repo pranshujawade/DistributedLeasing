@@ -106,6 +106,9 @@ public class CosmosLeaseProvider : ILeaseProvider, IDisposable
             existingLease.Owner = Environment.MachineName;
             existingLease.LastRenewedAt = null;
             existingLease.RenewalCount = 0;
+            existingLease.Metadata = _options.Metadata?.Count > 0 
+                ? new Dictionary<string, string>(_options.Metadata) 
+                : null;
 
             var requestOptions = new ItemRequestOptions
             {
@@ -142,7 +145,10 @@ public class CosmosLeaseProvider : ILeaseProvider, IDisposable
                 DurationSeconds = (int)duration.TotalSeconds,
                 Owner = Environment.MachineName,
                 TimeToLive = _options.DefaultTimeToLive,
-                RenewalCount = 0
+                RenewalCount = 0,
+                Metadata = _options.Metadata?.Count > 0 
+                    ? new Dictionary<string, string>(_options.Metadata) 
+                    : null
             };
 
             try

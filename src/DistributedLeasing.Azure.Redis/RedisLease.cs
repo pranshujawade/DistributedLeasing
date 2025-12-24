@@ -11,7 +11,7 @@ namespace DistributedLeasing.Azure.Redis;
 /// Represents a lease acquired from Azure Redis.
 /// </summary>
 /// <remarks>
-/// This implementation uses Redis SET with NX (not exists) and PX (millisecond expiry) options.
+/// This implementation uses Redis hash storage for lease data and metadata.
 /// Renewal extends the expiration time using Lua script for atomicity.
 /// </remarks>
 internal class RedisLease : LeaseBase
@@ -72,9 +72,9 @@ internal class RedisLease : LeaseBase
                 };
             }
 
-            // Lua script for atomic renewal - only extend if we still own the lease
+            // Lua script for atomic renewal - only extend if we still own the lease (hash-based)
             const string renewScript = @"
-                if redis.call('get', KEYS[1]) == ARGV[1] then
+                if redis.call('hget', KEYS[1], 'leaseId') == ARGV[1] then
                     return redis.call('pexpire', KEYS[1], ARGV[2])
                 else
                     return 0
@@ -127,9 +127,9 @@ internal class RedisLease : LeaseBase
     {
         try
         {
-            // Lua script for atomic release - only delete if we still own the lease
+            // Lua script for atomic release - only delete if we still own the lease (hash-based)
             const string releaseScript = @"
-                if redis.call('get', KEYS[1]) == ARGV[1] then
+                if redis.call('hget', KEYS[1], 'leaseId') == ARGV[1] then
                     return redis.call('del', KEYS[1])
                 else
                     return 0
