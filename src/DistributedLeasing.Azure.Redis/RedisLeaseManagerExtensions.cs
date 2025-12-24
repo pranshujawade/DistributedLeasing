@@ -1,5 +1,6 @@
 using System;
 using DistributedLeasing.Abstractions;
+using DistributedLeasing.Abstractions.Contracts;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
