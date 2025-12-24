@@ -1,6 +1,6 @@
 using DistributedLeasing.Abstractions;
-using DistributedLeasing.Abstractions;
-using DistributedLeasing.Core.Exceptions;
+using DistributedLeasing.Abstractions.Contracts;
+using DistributedLeasing.Abstractions.Exceptions;
 
 namespace DistributedLeasing.ChaosEngineering;
 
