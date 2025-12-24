@@ -11,7 +11,7 @@
     <TreatWarningsAsErrors Condition="'$(IsTestProject)' != 'true'">true</TreatWarningsAsErrors>
     
     <!-- Shared NuGet Package Metadata -->
-    <Version>3.0.0</Version>
+    <Version>4.0.0</Version>
     <PackageReleaseNotes>Major version 2.0: Eliminated code duplication, merged authentication into abstractions, clean SOLID architecture. Breaking changes: Internal abstractions removed, providers now reference shared Abstractions package.</PackageReleaseNotes>
     <Authors>DistributedLeasing Contributors</Authors>
     <Company>DistributedLeasing</Company>
