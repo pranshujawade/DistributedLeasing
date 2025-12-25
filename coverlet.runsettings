@@ -5,11 +5,17 @@
       <DataCollector friendlyName="XPlat code coverage">
         <Configuration>
           <Format>opencover</Format>
-          <Exclude>[*.Tests]*,[*]System.*</Exclude>
-          <ExcludeByAttribute>Obsolete,GeneratedCode,CompilerGenerated</ExcludeByAttribute>
+          <Exclude>[*.Tests]*,[*.Tests.Shared]*,[*]System.*</Exclude>
+          <ExcludeByAttribute>Obsolete,GeneratedCode,CompilerGenerated,ExcludeFromCodeCoverage</ExcludeByAttribute>
+          <ExcludeByFile>**/Migrations/**,**/obj/**,**/bin/**</ExcludeByFile>
           <IncludeDirectory>src</IncludeDirectory>
+          <SkipAutoProps>true</SkipAutoProps>
         </Configuration>
       </DataCollector>
     </DataCollectors>
   </DataCollectionRunSettings>
+  <RunConfiguration>
+    <MaxCpuCount>0</MaxCpuCount>
+    <ResultsDirectory>./coverage</ResultsDirectory>
+  </RunConfiguration>
 </RunSettings>
