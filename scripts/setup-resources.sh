@@ -181,7 +181,7 @@ if [[ "$RESOURCE_TYPE" == "all" || "$RESOURCE_TYPE" == "cosmos" ]]; then
         az cosmosdb create \
             --name "$COSMOS_ACCOUNT_NAME" \
             --resource-group "$RESOURCE_GROUP" \
-            --location "$LOCATION" \
+            --locations regionName="$LOCATION" \
             --kind GlobalDocumentDB \
             --default-consistency-level Session \
             --enable-automatic-failover false \
