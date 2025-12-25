@@ -11,8 +11,8 @@
     <TreatWarningsAsErrors Condition="'$(IsTestProject)' != 'true'">true</TreatWarningsAsErrors>
     
     <!-- Shared NuGet Package Metadata -->
-    <Version>5.0.0</Version>
-    <PackageReleaseNotes>Major version 5.0: Enhanced documentation with package-specific READMEs, comprehensive authentication guide, observability examples, and automated release pipeline. Includes new CosmosLeaseSample and improved package structure. No breaking API changes - safe to upgrade from 4.x.</PackageReleaseNotes>
+    <Version>5.1.0</Version>
+    <PackageReleaseNotes>Minor version 5.1: Added Redis distributed locking sample with comprehensive documentation, enhanced setup-resources.sh script with --project argument supporting blob/cosmos/redis selection, interactive configuration wizard for all samples. Includes RedisLeaseSample demonstrating atomic SET NX operations, lock competition, and metadata inspection. No breaking API changes - safe to upgrade from 5.0.x.</PackageReleaseNotes>
     <Authors>DistributedLeasing Contributors</Authors>
     <Company>DistributedLeasing</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

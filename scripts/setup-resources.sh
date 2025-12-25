@@ -8,8 +8,9 @@
 #
 # Usage:
 #   ./setup-resources.sh                          # Create all resources
-#   ./setup-resources.sh --resource-type blob     # Create only blob resources
-#   ./setup-resources.sh --resource-type cosmos   # Create only cosmos resources
+#   ./setup-resources.sh --project blob           # Create only blob resources
+#   ./setup-resources.sh --project cosmos         # Create only cosmos resources
+#   ./setup-resources.sh --project redis          # Create only redis resources
 #   ./setup-resources.sh --location westus2       # Use different region
 # =============================================================================
 
@@ -28,6 +29,7 @@ RESOURCE_GROUP="pranshu-rg"
 LOCATION="eastus"
 STORAGE_ACCOUNT_NAME="pranshublobdist"
 COSMOS_ACCOUNT_NAME="pranshucosmosdist"
+REDIS_CACHE_NAME="pranshuredisdist"
 CONTAINER_NAME="leases"
 DATABASE_NAME="DistributedLeasing"
 SUBSCRIPTION_NAME="Visual Studio Enterprise Subscription"
@@ -36,7 +38,7 @@ RESOURCE_TYPE="all"
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --resource-type)
+        --resource-type|--project)
             RESOURCE_TYPE="$2"
             shift 2
             ;;
@@ -48,13 +50,17 @@ while [[ $# -gt 0 ]]; do
             COSMOS_ACCOUNT_NAME="$2"
             shift 2
             ;;
+        --redis-cache)
+            REDIS_CACHE_NAME="$2"
+            shift 2
+            ;;
         --location)
             LOCATION="$2"
             shift 2
             ;;
         *)
             echo -e "${RED}Unknown option: $1${NC}"
-            echo "Usage: $0 [--resource-type <blob|cosmos|all>] [--storage-account <name>] [--cosmos-account <name>] [--location <region>]"
+            echo "Usage: $0 [--project <blob|cosmos|redis|all>] [--storage-account <name>] [--cosmos-account <name>] [--redis-cache <name>] [--location <region>]"
             exit 1
             ;;
     esac
@@ -243,6 +249,61 @@ EOF
     fi
 fi
 
+# Setup Redis Cache resources
+if [[ "$RESOURCE_TYPE" == "all" || "$RESOURCE_TYPE" == "redis" ]]; then
+    echo ""
+    echo -e "${BLUE}================================================================${NC}"
+    echo -e "${BLUE}Redis Cache Setup${NC}"
+    echo -e "${BLUE}================================================================${NC}"
+    echo ""
+    
+    # Check if Redis cache exists
+    if az redis show --name "$REDIS_CACHE_NAME" --resource-group "$RESOURCE_GROUP" &> /dev/null; then
+        echo -e "${YELLOW}⚠ Redis cache already exists: $REDIS_CACHE_NAME${NC}"
+        echo -e "${CYAN}Skipping creation, using existing cache${NC}"
+    else
+        echo "Creating Redis cache: $REDIS_CACHE_NAME"
+        echo -e "${CYAN}(This may take 5-10 minutes...)${NC}"
+        az redis create \
+            --name "$REDIS_CACHE_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --location "$LOCATION" \
+            --sku Basic \
+            --vm-size C0 \
+            --enable-non-ssl-port false \
+            --output none
+        echo -e "${GREEN}✓ Redis cache created${NC}"
+    fi
+    
+    # Get primary access key
+    REDIS_PRIMARY_KEY=$(az redis list-keys \
+        --name "$REDIS_CACHE_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --query primaryKey \
+        --output tsv)
+    
+    REDIS_HOSTNAME="${REDIS_CACHE_NAME}.redis.cache.windows.net"
+    REDIS_PORT="6380"
+    REDIS_CONNECTION_STRING="${REDIS_HOSTNAME}:${REDIS_PORT},password=${REDIS_PRIMARY_KEY},ssl=True,abortConnect=False"
+    
+    # Generate Redis sample configuration
+    REDIS_SAMPLE_DIR="/Users/pjawade/repos/DistributedLeasing/samples/RedisLeaseSample"
+    if [[ -d "$REDIS_SAMPLE_DIR" ]]; then
+        echo ""
+        echo "Generating appsettings.Local.json for Redis sample..."
+        cat > "$REDIS_SAMPLE_DIR/appsettings.Local.json" << EOF
+{
+  "RedisLeasing": {
+    "ConnectionString": "$REDIS_CONNECTION_STRING",
+    "KeyPrefix": "lease:",
+    "Database": 0
+  }
+}
+EOF
+        echo -e "${GREEN}✓ Configuration file created: $REDIS_SAMPLE_DIR/appsettings.Local.json${NC}"
+    fi
+fi
+
 # Summary
 echo ""
 echo -e "${BLUE}================================================================${NC}"
@@ -267,11 +328,23 @@ if [[ "$RESOURCE_TYPE" == "all" || "$RESOURCE_TYPE" == "cosmos" ]]; then
     echo ""
 fi
 
+if [[ "$RESOURCE_TYPE" == "all" || "$RESOURCE_TYPE" == "redis" ]]; then
+    echo -e "${CYAN}Redis Cache Resources:${NC}"
+    echo "  • Resource Group:   $RESOURCE_GROUP"
+    echo "  • Redis Cache:      $REDIS_CACHE_NAME"
+    echo "  • Hostname:         ${REDIS_CACHE_NAME}.redis.cache.windows.net"
+    echo "  • Port:             6380"
+    echo ""
+fi
+
 echo -e "${GREEN}Next steps:${NC}"
 if [[ "$RESOURCE_TYPE" == "all" || "$RESOURCE_TYPE" == "blob" ]]; then
     echo "  • Run Blob sample: ${BLUE}cd samples/BlobLeaseSample && dotnet run --instance us-east-1 --region us-east${NC}"
 fi
 if [[ "$RESOURCE_TYPE" == "all" || "$RESOURCE_TYPE" == "cosmos" ]]; then
     echo "  • Run Cosmos sample: ${BLUE}cd samples/CosmosLeaseSample && dotnet run --instance us-east-1 --region us-east${NC}"
+fi
+if [[ "$RESOURCE_TYPE" == "all" || "$RESOURCE_TYPE" == "redis" ]]; then
+    echo "  • Run Redis sample: ${BLUE}cd samples/RedisLeaseSample && dotnet run --instance us-east-1 --region us-east${NC}"
 fi
 echo ""
