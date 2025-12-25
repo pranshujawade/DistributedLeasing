@@ -11,8 +11,8 @@
     <TreatWarningsAsErrors Condition="'$(IsTestProject)' != 'true'">true</TreatWarningsAsErrors>
     
     <!-- Shared NuGet Package Metadata -->
-    <Version>4.0.0</Version>
-    <PackageReleaseNotes>Major version 2.0: Eliminated code duplication, merged authentication into abstractions, clean SOLID architecture. Breaking changes: Internal abstractions removed, providers now reference shared Abstractions package.</PackageReleaseNotes>
+    <Version>5.0.0</Version>
+    <PackageReleaseNotes>Major version 5.0: Enhanced documentation with package-specific READMEs, comprehensive authentication guide, observability examples, and automated release pipeline. Includes new CosmosLeaseSample and improved package structure. No breaking API changes - safe to upgrade from 4.x.</PackageReleaseNotes>
     <Authors>DistributedLeasing Contributors</Authors>
     <Company>DistributedLeasing</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -20,7 +20,7 @@
     <RepositoryUrl>https://github.com/pranshujawade/DistributedLeasing.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <Copyright>Copyright © 2024 DistributedLeasing Contributors</Copyright>
+    <Copyright>Copyright © 2024-2025 DistributedLeasing Contributors</Copyright>
     
     <!-- Source Link Configuration for Debugging Support -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -34,7 +34,10 @@
   
   <!-- Include README.md in all packages -->
   <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Condition="Exists('$(MSBuildThisFileDirectory)README.md')" />
+    <!-- Include package-specific README if it exists (takes precedence) -->
+    <None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="\" Condition="'$(IsPackable)' == 'true' AND Exists('$(MSBuildProjectDirectory)\README.md')" />
+    <!-- Include root README as fallback if package-specific doesn't exist -->
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Condition="'$(IsPackable)' == 'true' AND !Exists('$(MSBuildProjectDirectory)\README.md') AND Exists('$(MSBuildThisFileDirectory)README.md')" />
     <!-- <None Include="$(MSBuildThisFileDirectory)icon.svg" Pack="true" PackagePath="\" Condition="Exists('$(MSBuildThisFileDirectory)icon.svg')" /> -->
   </ItemGroup>
 

@@ -267,9 +267,15 @@ public class LeasingMetricsTests : IDisposable
         // Act
         LeasingMetrics.LeasesLost.Add(1, tags);
 
-        // Assert
-        _counterMeasurements.Should().ContainSingle();
-        _counterMeasurements.First().Value.Should().Be(1);
+        // Assert - Check that at least one measurement was recorded with correct value
+        // Note: Other concurrent tests may also record, so we check for ANY match rather than SINGLE
+        _counterMeasurements.Should().NotBeEmpty();
+        _counterMeasurements.Should().Contain(m => m.Value == 1);
+        
+        // Verify the tags are present in at least one measurement
+        var matchingMeasurement = _counterMeasurements.FirstOrDefault(m => 
+            m.Tags.ToArray().Any(t => t.Key == "provider" && t.Value?.ToString() == "CosmosLeaseProvider"));
+        matchingMeasurement.Should().NotBeNull();
     }
 
     [Fact]

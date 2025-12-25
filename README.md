@@ -7,29 +7,32 @@ A flexible, production-ready distributed leasing library for .NET that enables d
 - **Multiple Azure Providers**: Support for Azure Blob Storage, Azure Cosmos DB, and Azure Redis
 - **Automatic Lease Renewal**: Built-in mechanisms to maintain leases automatically
 - **Leader Election**: Simple, reliable leader election for distributed systems
-- **Managed Identity Support**: First-class support for Azure Managed Identity authentication
-- **Dependency Injection**: ASP.NET Core integration with familiar service registration patterns
+- **Comprehensive Authentication**: Support for Managed Identity, Service Principal, Workload Identity, and development credentials
+- **Observability Built-in**: OpenTelemetry metrics, distributed tracing, and health checks
+- **Event-Driven**: Lease lifecycle events for monitoring and integration
 - **Multi-Framework Support**: Compatible with .NET Framework 4.6.1+, .NET Core 2.0+, .NET 8.0, and .NET 10.0
 
 ## Quick Start
 
 ### Installation
 
-Install the provider package you need. Dependencies are installed automatically:
+Install the provider package you need:
 
 ```bash
-# For Azure Blob Storage
+# For Azure Blob Storage (cloud-native, reliable)
 dotnet add package DistributedLeasing.Azure.Blob
 
-# For Azure Cosmos DB
+# For Azure Cosmos DB (global distribution, multi-region)
 dotnet add package DistributedLeasing.Azure.Cosmos
 
-# For Azure Redis
+# For Azure Redis (lowest latency, high throughput)
 dotnet add package DistributedLeasing.Azure.Redis
 
-# For ASP.NET Core with Dependency Injection (includes all providers)
-dotnet add package DistributedLeasing.Extensions.DependencyInjection
+# For testing and chaos engineering
+dotnet add package DistributedLeasing.ChaosEngineering
 ```
+
+Each provider package automatically includes the core `DistributedLeasing.Abstractions` package with authentication and observability support.
 
 ### Basic Usage - Azure Blob Storage
 
@@ -68,63 +71,54 @@ if (lease != null)
 }
 ```
 
-### ASP.NET Core with Dependency Injection
+### With Managed Identity Authentication
 
 ```csharp
-using DistributedLeasing.Extensions.DependencyInjection;
+using DistributedLeasing.Azure.Blob;
+using Azure.Identity;
 
-// In Program.cs or Startup.cs
-builder.Services.AddDistributedLeasing(options =>
+// Configure authentication in appsettings.json
+// {
+//   "Authentication": {
+//     "Mode": "Auto"  // or "ManagedIdentity", "WorkloadIdentity", etc.
+//   }
+// }
+
+var provider = new BlobLeaseProvider(new BlobLeaseProviderOptions
 {
-    options.UseBlobStorage(blobOptions =>
-    {
-        blobOptions.ContainerUri = new Uri("https://youraccount.blob.core.windows.net/leases");
-        blobOptions.Credential = new DefaultAzureCredential();
-    });
+    ContainerUri = new Uri("https://youraccount.blob.core.windows.net/leases"),
+    Credential = new DefaultAzureCredential(),  // Automatic credential chain
+    CreateContainerIfNotExists = true
 });
 
-// In your service
-public class MyService
+var leaseManager = await provider.CreateLeaseManagerAsync("my-resource");
+var lease = await leaseManager.AcquireAsync(TimeSpan.FromSeconds(60));
+
+if (lease != null)
 {
-    private readonly ILeaseProvider _leaseProvider;
-    
-    public MyService(ILeaseProvider leaseProvider)
+    try
     {
-        _leaseProvider = leaseProvider;
+        // Your critical work here
+        await DoExclusiveWorkAsync();
     }
-    
-    public async Task DoWorkAsync()
+    finally
     {
-        var manager = await _leaseProvider.CreateLeaseManagerAsync("my-resource");
-        var lease = await manager.AcquireAsync(TimeSpan.FromSeconds(60));
-        
-        if (lease != null)
-        {
-            try
-            {
-                // Your critical work here
-            }
-            finally
-            {
-                await lease.ReleaseAsync();
-            }
-        }
+        await lease.ReleaseAsync();
     }
 }
 ```
 
 ## Package Structure
 
-This library follows a granular package structure with automatic dependency resolution:
+This library follows a clean package structure:
 
-- **DistributedLeasing.Core**: Core interfaces and contracts
-- **DistributedLeasing.Abstractions**: Base provider abstractions (for building custom providers)
-- **DistributedLeasing.Azure.Blob**: Azure Blob Storage implementation
-- **DistributedLeasing.Azure.Cosmos**: Azure Cosmos DB implementation  
-- **DistributedLeasing.Azure.Redis**: Azure Redis implementation
-- **DistributedLeasing.Extensions.DependencyInjection**: ASP.NET Core integration
+- **[DistributedLeasing.Abstractions](https://www.nuget.org/packages/DistributedLeasing.Abstractions/)**: Core contracts, base implementations, authentication, events, observability
+- **[DistributedLeasing.Azure.Blob](https://www.nuget.org/packages/DistributedLeasing.Azure.Blob/)**: Azure Blob Storage provider (native leases, reliable)
+- **[DistributedLeasing.Azure.Cosmos](https://www.nuget.org/packages/DistributedLeasing.Azure.Cosmos/)**: Azure Cosmos DB provider (ETag-based, global distribution)  
+- **[DistributedLeasing.Azure.Redis](https://www.nuget.org/packages/DistributedLeasing.Azure.Redis/)**: Azure Redis provider (Redlock algorithm, ultra-low latency)
+- **[DistributedLeasing.ChaosEngineering](https://www.nuget.org/packages/DistributedLeasing.ChaosEngineering/)**: Testing utilities (chaos injection, resilience testing)
 
-When you install a provider package (e.g., `DistributedLeasing.Azure.Blob`), all required dependencies are automatically installed.
+When you install a provider package, all required dependencies (including Abstractions) are automatically installed.
 
 ## Use Cases
 
@@ -188,11 +182,100 @@ public async Task ExecuteScheduledJobAsync()
 }
 ```
 
+## Authentication
+
+All Azure providers support unified authentication through the Abstractions package. Configure once, use everywhere.
+
+### Supported Authentication Modes
+
+- **Auto** - Automatic credential chain (recommended)
+- **ManagedIdentity** - System-assigned or user-assigned managed identity
+- **WorkloadIdentity** - Kubernetes/GitHub Actions OIDC
+- **ServicePrincipal** - Certificate or client secret
+- **FederatedCredential** - External OIDC token exchange
+- **Development** - Azure CLI, Visual Studio, VS Code
+
+### Configuration Example
+
+```json
+{
+  "Authentication": {
+    "Mode": "Auto"
+  }
+}
+```
+
+For detailed authentication configuration, see the [Abstractions package documentation](https://www.nuget.org/packages/DistributedLeasing.Abstractions/).
+
+## Observability
+
+Built-in support for monitoring and observability:
+
+### Health Checks
+
+```csharp
+services.AddHealthChecks()
+    .AddCheck<LeaseHealthCheck>("lease-health");
+```
+
+### OpenTelemetry Metrics
+
+```csharp
+services.AddOpenTelemetry()
+    .WithMetrics(builder => builder.AddMeter(LeasingMetrics.MeterName));
+```
+
+**Available Metrics**:
+- `leasing.acquire.duration` - Lease acquisition time
+- `leasing.acquire.success` - Successful acquisitions
+- `leasing.renewal.success` - Successful renewals
+- `leasing.active.count` - Active leases
+
+### Distributed Tracing
+
+```csharp
+services.AddOpenTelemetry()
+    .WithTracing(builder => builder.AddSource(LeasingActivitySource.SourceName));
+```
+
+## Event System
+
+Monitor lease lifecycle with events:
+
+```csharp
+lease.LeaseRenewed += (sender, e) =>
+{
+    Console.WriteLine($"Lease renewed. New expiration: {e.NewExpiration}");
+};
+
+lease.LeaseLost += (sender, e) =>
+{
+    Console.WriteLine($"Lease lost! Reason: {e.Reason}");
+    // Trigger graceful shutdown
+};
+```
+
+## Provider Comparison
+
+| Feature | Azure Blob | Azure Cosmos | Azure Redis |
+|---------|------------|--------------|-------------|
+| **Latency** | 50-150ms | 5-100ms | 1-5ms |
+| **Mechanism** | Native leases | ETag optimistic | Redlock algorithm |
+| **Global Distribution** | Single region | Multi-region | Single region |
+| **Cost** | Low | Medium-High | Medium |
+| **Best For** | Reliability | Global apps | Low latency |
+
 ## Documentation
 
-For comprehensive documentation, API reference, and advanced scenarios, visit:
-- [GitHub Repository](https://github.com/yourusername/DistributedLeasing)
-- [API Documentation](https://github.com/yourusername/DistributedLeasing/docs)
+For comprehensive documentation, samples, and advanced scenarios:
+
+- [GitHub Repository](https://github.com/pranshujawade/DistributedLeasing)
+- [Abstractions Package](https://www.nuget.org/packages/DistributedLeasing.Abstractions/) - Core framework and authentication
+- [Blob Provider](https://www.nuget.org/packages/DistributedLeasing.Azure.Blob/) - Azure Blob Storage
+- [Cosmos Provider](https://www.nuget.org/packages/DistributedLeasing.Azure.Cosmos/) - Azure Cosmos DB
+- [Redis Provider](https://www.nuget.org/packages/DistributedLeasing.Azure.Redis/) - Azure Redis
+- [BlobLeaseSample](samples/BlobLeaseSample/README.md) - Complete working example
+- [CosmosLeaseSample](samples/CosmosLeaseSample/README.md) - Cosmos DB examples
 
 ## License
 

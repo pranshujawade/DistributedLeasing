@@ -12,6 +12,7 @@ BUMP_TYPE=""
 PRE_RELEASE=""
 SHOULD_PUBLISH=false
 DRY_RUN=false
+FORCE=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -32,9 +33,13 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
+        --force)
+            FORCE=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [major|minor|patch] [--pre-release alpha|beta|rc] [--publish] [--dry-run]"
+            echo "Usage: $0 [major|minor|patch] [--pre-release alpha|beta|rc] [--publish] [--dry-run] [--force]"
             exit 1
             ;;
     esac
@@ -42,7 +47,7 @@ done
 
 if [ -z "$BUMP_TYPE" ]; then
     echo "Error: You must specify bump type (major, minor, or patch)"
-    echo "Usage: $0 [major|minor|patch] [--pre-release alpha|beta|rc] [--publish] [--dry-run]"
+    echo "Usage: $0 [major|minor|patch] [--pre-release alpha|beta|rc] [--publish] [--dry-run] [--force]"
     exit 1
 fi
 
@@ -58,6 +63,9 @@ fi
 if [ "$SHOULD_PUBLISH" = true ]; then
     echo "Publish: Yes"
 fi
+if [ "$FORCE" = true ]; then
+    echo "Non-Interactive: Yes (--force)"
+fi
 if [ "$DRY_RUN" = true ]; then
     echo "Mode: DRY RUN"
 fi
@@ -65,7 +73,7 @@ echo "========================================"
 echo ""
 
 # Check for uncommitted changes
-if [ "$DRY_RUN" = false ]; then
+if [ "$DRY_RUN" = false ] && [ "$FORCE" = false ]; then
     if ! git diff-index --quiet HEAD --; then
         echo "⚠️  Warning: You have uncommitted changes"
         read -p "Do you want to continue? (y/n) " -n 1 -r
@@ -122,7 +130,7 @@ fi
 
 echo "New version will be: $NEW_VERSION"
 
-if [ "$DRY_RUN" = false ]; then
+if [ "$DRY_RUN" = false ] && [ "$FORCE" = false ]; then
     echo ""
     read -p "Proceed with version $NEW_VERSION? (y/n) " -n 1 -r
     echo ""
@@ -130,7 +138,9 @@ if [ "$DRY_RUN" = false ]; then
         echo "Release cancelled."
         exit 1
     fi
-    
+fi
+
+if [ "$DRY_RUN" = false ]; then    
     sed -i.bak "s|<Version>.*</Version>|<Version>$NEW_VERSION</Version>|" "$REPO_ROOT/Directory.Build.props"
     rm -f "$REPO_ROOT/Directory.Build.props.bak"
     echo "✅ Version updated to $NEW_VERSION"
