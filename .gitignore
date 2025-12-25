@@ -185,6 +185,7 @@ local.settings.json
 # User secrets
 appsettings.local.json
 appsettings.*.local.json
+appsettings.Local.json
 secrets.json
 
 # Temporary Azure credentials

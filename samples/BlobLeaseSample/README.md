@@ -14,6 +14,50 @@ The sample showcases:
 - ✅ **Structured logging** for observability
 - ✅ **Error handling** best practices
 
+## Quick Start (Development Setup)
+
+The fastest way to get started is using the automated setup script:
+
+### 1. Prerequisites
+
+- Azure CLI installed and logged in (`az login`)
+- .NET 8.0 SDK installed
+- Access to an Azure subscription (Visual Studio Enterprise recommended)
+
+### 2. Run the Setup Script
+
+```bash
+cd samples/BlobLeaseSample
+./setup-azure-resources.sh
+```
+
+This script will:
+- ✅ Create a resource group named `pranshu-rg`
+- ✅ Create an Azure Storage account with a unique name
+- ✅ Create a blob container named `leases`
+- ✅ Generate `appsettings.Local.json` with your connection string
+- ✅ Update `.gitignore` to exclude the local settings file
+
+### 3. Run the Sample
+
+```bash
+# Using the Local environment (with connection string)
+DOTNET_ENVIRONMENT=Local dotnet run
+
+# Or specify environment explicitly
+dotnet run --environment Local
+```
+
+That's it! The sample will acquire a lease and demonstrate automatic renewal.
+
+### 4. Clean Up Resources
+
+When you're done testing:
+
+```bash
+az group delete --name pranshu-rg --yes --no-wait
+```
+
 ## Prerequisites
 
 Before running this sample, you need:
@@ -38,6 +82,29 @@ Before running this sample, you need:
    - Download from https://dotnet.microsoft.com/download/dotnet/8.0
 
 ## Configuration
+
+### Automated Setup (Recommended for Development)
+
+The easiest way to configure the sample is to use the provided setup script:
+
+```bash
+cd samples/BlobLeaseSample
+./setup-azure-resources.sh
+```
+
+The script will:
+1. Create all required Azure resources in the `pranshu-rg` resource group
+2. Generate an `appsettings.Local.json` file with the connection string
+3. Configure the blob container and necessary settings
+
+After running the script, you can immediately run the sample with:
+```bash
+DOTNET_ENVIRONMENT=Local dotnet run
+```
+
+### Manual Configuration
+
+If you prefer to configure manually or need custom settings:
 
 ### Step 1: Update appsettings.json
 
@@ -361,6 +428,50 @@ if (lease != null)
 1. Increase `DefaultLeaseDuration` (e.g., to 60 seconds)
 2. Adjust `AutoRenewInterval` to be ~2/3 of duration
 3. Check network connectivity to Azure
+4. Review `AutoRenewSafetyThreshold` setting
+
+## Best Practices
+
+1. **Always release leases**: Use `finally` blocks or `using` statements
+2. **Handle lease loss**: Subscribe to `LeaseLost` event and stop work immediately
+3. **Use appropriate durations**: 30-60 seconds for most scenarios
+4. **Set renewal intervals**: Configure to ~2/3 of lease duration
+5. **Monitor lease health**: Subscribe to all lifecycle events
+6. **Test failure scenarios**: Simulate network issues, crashes, etc.
+7. **Use Managed Identity**: Avoid connection strings in production
+8. **Configure retries**: Set appropriate `AutoRenewMaxRetries` for your scenario
+
+## Production Considerations
+
+When deploying to production:
+
+- ✅ Use **Managed Identity** or **Service Principal** authentication
+- ✅ Store sensitive configuration in **Azure Key Vault**
+- ✅ Enable **Application Insights** for telemetry and monitoring
+- ✅ Set up **health checks** using the built-in `LeaseHealthCheck`
+- ✅ Configure **retry policies** appropriate for your workload
+- ✅ Use **separate containers** for different environments (dev/staging/prod)
+- ✅ Monitor lease renewal metrics and set up alerts
+- ✅ Test failover scenarios thoroughly
+
+## Additional Resources
+
+- [DistributedLeasing Documentation](../../README.md)
+- [Azure Blob Storage Leases](https://docs.microsoft.com/azure/storage/blobs/storage-blob-lease)
+- [DefaultAzureCredential](https://docs.microsoft.com/dotnet/api/azure.identity.defaultazurecredential)
+- [Azure RBAC for Storage](https://docs.microsoft.com/azure/storage/blobs/authorize-access-azure-active-directory)
+
+## Support
+
+For issues or questions:
+
+- File an issue on GitHub
+- Check existing documentation
+- Review Azure Storage logs in the portal
+
+## License
+
+This sample is part of the DistributedLeasing project and is licensed under the same terms.
 4. Review `AutoRenewSafetyThreshold` setting
 
 ## Best Practices

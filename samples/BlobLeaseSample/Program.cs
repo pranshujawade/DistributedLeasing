@@ -32,6 +32,10 @@ public class Program
                 config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
                 config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", 
                     optional: true, reloadOnChange: true);
+                
+                // Support for Local environment with connection string
+                config.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+                
                 config.AddEnvironmentVariables();
             })
             .ConfigureServices((context, services) =>
