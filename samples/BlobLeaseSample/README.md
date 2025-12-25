@@ -1,518 +1,710 @@
-# Azure Blob Lease Sample
+# Distributed Lock Demo - Azure Blob Lease Sample
 
-This sample demonstrates how to use the **DistributedLeasing.Azure.Blob** provider to implement distributed locking and leader election using Azure Blob Storage leases.
+This sample demonstrates **distributed lock competition** using Azure Blob Storage leases. It shows how multiple instances compete for the same lock, where only one winner can execute critical work while others fail gracefully.
 
-## Overview
+## What This Demo Shows
 
-The sample showcases:
+✅ **Lock Competition**: Two instances simultaneously trying to acquire the same lock  
+✅ **Winner/Loser Pattern**: Only one instance wins and executes work  
+✅ **Graceful Failure**: Losing instances fail without blocking  
+✅ **Automatic Renewal**: Winner maintains lock with auto-renewal  
+✅ **Clean Takeover**: Lock becomes available when winner releases it
 
-- ✅ **Dependency Injection** setup using Microsoft.Extensions.Hosting
-- ✅ **Configuration binding** from appsettings.json
-- ✅ **Automatic lease renewal** with configurable intervals
-- ✅ **Event handling** for lease lifecycle (renewed, renewal failed, lost)
-- ✅ **Graceful shutdown** with explicit lease release
-- ✅ **Structured logging** for observability
-- ✅ **Error handling** best practices
+## Quick Start
 
-## Quick Start (Development Setup)
+### Option 1: Automatic Setup (Recommended)
 
-The fastest way to get started is using the automated setup script:
-
-### 1. Prerequisites
-
-- Azure CLI installed and logged in (`az login`)
-- .NET 8.0 SDK installed
-- Access to an Azure subscription (Visual Studio Enterprise recommended)
-
-### 2. Run the Setup Script
+Run the combined demo script that handles setup and execution:
 
 ```bash
 cd samples/BlobLeaseSample
-./setup-azure-resources.sh
+./run-demo.sh
 ```
 
 This script will:
-- ✅ Create a resource group named `pranshu-rg`
-- ✅ Create an Azure Storage account with a unique name
-- ✅ Create a blob container named `leases`
-- ✅ Generate `appsettings.Local.json` with your connection string
-- ✅ Update `.gitignore` to exclude the local settings file
+- Validate prerequisites (.NET SDK, Azure CLI)
+- Run Azure resource setup if needed
+- Launch two competing instances automatically
+- Display color-coded output in one terminal
 
-### 3. Run the Sample
+**What you'll see:**
+- Green text `[us-east-1]` for Instance 1
+- Cyan text `[eu-west-1]` for Instance 2
+- One instance acquires the lock, the other fails gracefully
+- Press Ctrl+C to stop both instances
 
-```bash
-# Using the Local environment (with connection string)
-DOTNET_ENVIRONMENT=Local dotnet run
+### Option 2: Manual Setup and Execution
 
-# Or specify environment explicitly
-dotnet run --environment Local
-```
-
-That's it! The sample will acquire a lease and demonstrate automatic renewal.
-
-### 4. Clean Up Resources
-
-When you're done testing:
+For more control, set up and run instances manually:
 
 ```bash
-az group delete --name pranshu-rg --yes --no-wait
-```
-
-## Prerequisites
-
-Before running this sample, you need:
-
-1. **Azure Storage Account**
-   - An active Azure subscription
-   - A storage account with Blob Storage enabled
-   - Note your storage account name (e.g., `mystorageaccount`)
-
-2. **Authentication Setup** (choose one):
-   - **Azure CLI**: Run `az login` for local development
-   - **Managed Identity**: When running in Azure (VM, App Service, Container Apps, etc.)
-   - **Service Principal**: Set environment variables for client credentials
-   - **Connection String**: For development only (not recommended for production)
-
-3. **Permissions**
-   - Your identity needs the following Azure RBAC roles:
-     - `Storage Blob Data Contributor` (to create containers and acquire leases)
-     - Or `Storage Blob Data Owner` (for full control)
-
-4. **.NET 8.0 SDK**
-   - Download from https://dotnet.microsoft.com/download/dotnet/8.0
-
-## Configuration
-
-### Automated Setup (Recommended for Development)
-
-The easiest way to configure the sample is to use the provided setup script:
-
-```bash
+# Step 1: Setup Azure resources (one-time)
 cd samples/BlobLeaseSample
 ./setup-azure-resources.sh
 ```
 
-The script will:
-1. Create all required Azure resources in the `pranshu-rg` resource group
-2. Generate an `appsettings.Local.json` file with the connection string
-3. Configure the blob container and necessary settings
+This creates:
+- Resource group: `pranshu-rg`
+- Storage account with unique name
+- Blob container: `leases`
+- Configuration file: `appsettings.Local.json`
 
-After running the script, you can immediately run the sample with:
 ```bash
-DOTNET_ENVIRONMENT=Local dotnet run
+# Step 2: Run instances in separate terminals
+# Terminal 1:
+dotnet run --instance us-east-1 --region us-east
+
+# Terminal 2:
+dotnet run --instance eu-west-1 --region eu-west
 ```
 
-### Manual Configuration
+### Option 3: Interactive First-Run
 
-If you prefer to configure manually or need custom settings:
+Simply run the application - it will guide you through setup:
 
-### Step 1: Update appsettings.json
+```bash
+cd samples/BlobLeaseSample
+dotnet run --instance demo-1 --region demo
+```
 
-Open `appsettings.json` and replace the placeholder with your actual storage account name:
+If `appsettings.Local.json` is missing, you'll be prompted for:
+- Azure Storage Account name
+- Container name (default: "leases")
+- Authentication mode (Connection String or DefaultAzureCredential)
+
+The application will generate the configuration file and start automatically.
+
+### 4. Observe the Competition
+
+**Instance 1 Output (Winner):**
+```
+================================================================================
+DISTRIBUTED LOCK DEMO
+Instance ID: us-east-1
+Region: us-east
+================================================================================
+
+╔════════════════════════════════════════════════════════╗
+║  ✓ LOCK ACQUIRED SUCCESSFULLY                          ║
+║  This region is now the ACTIVE processor               ║
+╚════════════════════════════════════════════════════════╝
+
+Lock Details:
+  • Lease ID: 954d91dc-67fd-409a-b78a-90a78e36c928
+  • Instance: us-east-1
+  • Region: us-east
+
+▶ Starting critical work execution...
+  (Auto-renewal is active - lock will be maintained)
+
+[us-east-1] Processing work item #1 | Elapsed: 00:03 | Renewals: 0
+[us-east-1] Processing work item #2 | Elapsed: 00:06 | Renewals: 0
+...
+```
+
+**Instance 2 Output (Loser):**
+```
+================================================================================
+DISTRIBUTED LOCK DEMO
+Instance ID: eu-west-1
+Region: eu-west
+================================================================================
+
+╔════════════════════════════════════════════════════════╗
+║  LOCK ACQUISITION FAILED                               ║
+║  Another region is currently holding the lock         ║
+╚════════════════════════════════════════════════════════╝
+
+This instance cannot execute critical work at this time.
+The lock is held by another instance in a different region.
+Exiting gracefully...
+```
+
+### 5. Test Takeover
+
+1. Stop Instance 1 (Ctrl+C)
+2. Run Instance 2 again - it will now acquire the lock!
+
+## Configuration Modes
+
+The sample supports two authentication modes:
+
+### Mode 1: Connection String (Simple)
+- **Best for**: Local development, quick testing
+- **Requires**: Azure Storage connection string
+- **Security**: Lower (credentials stored in file)
+- **Setup**: Automatically configured by `setup-azure-resources.sh`
+
+### Mode 2: DefaultAzureCredential (Recommended)
+- **Best for**: Production, CI/CD, team environments  
+- **Requires**: Azure CLI login (`az login`)
+- **Security**: Higher (no credentials stored)
+- **Falls back through**: Managed Identity → Azure CLI → Environment variables
+- **Setup**: Choose option 2 in interactive configuration
+
+The application automatically detects which mode to use based on your configuration.
+
+## Configuration
+
+### Command-Line Arguments
+
+```bash
+dotnet run --instance <instance-id> --region <region-name>
+```
+
+Examples:
+```bash
+# Simulate US East region
+dotnet run --instance us-east-1 --region us-east
+
+# Simulate EU West region
+dotnet run --instance eu-west-1 --region eu-west
+
+# Simulate Asia Pacific region
+dotnet run --instance ap-south-1 --region ap-south
+```
+
+If not specified, random values are generated.
+
+### Configuration Files
+
+| File | Purpose | Auto-Generated | Version Controlled |
+|------|---------|----------------|--------------------|
+| `appsettings.json` | Template with placeholders | No | Yes (safe to commit) |
+| `appsettings.Local.json` | Your Azure credentials | Yes | No (git-ignored) |
+
+**How configuration works:**
+
+1. When you run `dotnet run` for the first time:
+   - Application checks for `appsettings.Local.json`
+   - If missing, interactive wizard prompts for Azure details
+   - Configuration file is generated automatically
+   - Application proceeds with demo
+
+2. Alternatively, run `./setup-azure-resources.sh` to:
+   - Create Azure resources (storage account, container)
+   - Generate `appsettings.Local.json` with connection string
+   - Verify setup completed successfully
+
+**Note**: Never commit `appsettings.Local.json` - it contains secrets and is automatically excluded by `.gitignore`.
+
+### appsettings.json (Template - Do Not Modify)
+
+This file contains placeholder values for reference:
 
 ```json
 {
   "BlobLeasing": {
     "StorageAccountUri": "https://[YOUR_STORAGE_ACCOUNT].blob.core.windows.net",
-    // ... other settings
+    "ContainerName": "leases",
+    "DefaultLeaseDuration": "00:00:30",
+    "AutoRenew": true,
+    "AutoRenewInterval": "00:00:20"
   }
 }
 ```
 
-**Example:**
-```json
-"StorageAccountUri": "https://mystorageaccount.blob.core.windows.net"
-```
+**Do not replace the placeholder values here.** Instead, let the setup process generate `appsettings.Local.json` with actual values.
 
-### Step 2: Configure Authentication
+### appsettings.Local.json (Auto-Generated)
 
-The default configuration uses **DefaultAzureCredential**, which automatically tries multiple authentication methods in this order:
+Generated by setup script or interactive configuration:
 
-1. Environment variables (service principal)
-2. Managed Identity
-3. Azure CLI credentials
-4. Visual Studio credentials
-5. Azure PowerShell credentials
-
-#### Option A: Azure CLI (Recommended for Local Development)
-
-```bash
-# Login to Azure
-az login
-
-# Set your subscription (if you have multiple)
-az account set --subscription "Your Subscription Name"
-```
-
-#### Option B: Connection String (Development Only)
-
-For local development, you can use a connection string instead:
-
-1. Get your connection string from the Azure Portal:
-   - Navigate to your Storage Account
-   - Go to "Access keys"
-   - Copy "Connection string" from key1 or key2
-
-2. Update `appsettings.Development.json`:
-
+**Connection String Mode:**
 ```json
 {
   "BlobLeasing": {
-    "ConnectionString": "DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net",
-    "StorageAccountUri": null
+    "ConnectionString": "DefaultEndpointsProtocol=https;AccountName=...;",
+    "ContainerName": "leases"
   }
 }
 ```
 
-**⚠️ Warning**: Never commit connection strings to source control. Use Azure Key Vault or user secrets for sensitive data.
+**DefaultAzureCredential Mode:**
+```json
+{
+  "BlobLeasing": {
+    "StorageAccountUri": "https://youraccount.blob.core.windows.net",
+    "ContainerName": "leases"
+  }
+}
+```
 
-#### Option C: Service Principal
+## How It Works
 
-Set environment variables:
+### The Distributed Lock Pattern
+
+1. **Instance Startup**: Each instance identifies itself with instance ID and region
+2. **Lock Acquisition**: Uses `TryAcquireAsync()` for non-blocking attempt
+3. **Winner Path**: If successful, executes critical work with auto-renewal
+4. **Loser Path**: If failed, logs failure and exits gracefully
+5. **Lock Release**: Winner releases lock on shutdown (Ctrl+C)
+6. **Takeover**: Next instance can now acquire the lock
+
+### Key Code Components
+
+**Non-Blocking Acquisition:**
+```csharp
+var lease = await _leaseManager.TryAcquireAsync(
+    leaseName: "critical-section-lock",
+    duration: null,  // Use default 30 seconds
+    cancellationToken: cancellationToken);
+
+if (lease == null)
+{
+    // Loser - another instance holds the lock
+    return false;
+}
+
+// Winner - proceed with critical work
+await ExecuteCriticalWorkAsync(lease, cancellationToken);
+```
+
+**Automatic Renewal:**
+```csharp
+lease.LeaseRenewed += (sender, e) =>
+{
+    _logger.LogDebug("Lock renewed | New expiration: {Expiration}",
+        e.NewExpiration.ToString("HH:mm:ss"));
+};
+```
+
+**Clean Release:**
+```csharp
+finally
+{
+    if (lease != null)
+    {
+        await lease.ReleaseAsync();
+        await lease.DisposeAsync();
+    }
+}
+```
+
+## Blob Metadata and Azure Visibility
+
+### What is Blob Metadata?
+
+Each lease is represented by a blob in Azure Storage. This demo automatically stores **instance identification metadata** with each blob, allowing you to:
+
+- **Track which instance holds the lock** - See instance ID, region, and hostname
+- **Monitor lease lifecycle** - View creation, acquisition, and modification timestamps
+- **Inspect state in real-time** - Use Azure CLI or Portal to see current holder
+- **Prove competition behavior** - Verify that only one instance holds the lock at a time
+
+### Metadata Structure
+
+The following metadata is automatically stored with each lease blob:
+
+| Metadata Key | Source | Description | Example Value |
+|--------------|--------|-------------|---------------|
+| `leaseName` | Automatic | Original lease name | `critical-section-lock` |
+| `createdAt` | Automatic | Blob creation timestamp | `2025-12-25T12:00:00.000Z` |
+| `lastModified` | Automatic | Last metadata update | `2025-12-25T12:05:30.000Z` |
+| `lease_instanceId` | User | Instance identifier | `us-east-1` |
+| `lease_region` | User | Region name | `us-east` |
+| `lease_hostname` | User | Machine hostname | `MACHINE-NAME` |
+| `lease_startTime` | User | Instance start time | `2025-12-25T12:00:00Z` |
+
+**Important**: User-provided metadata is automatically prefixed with `lease_` to avoid conflicts with system metadata.
+
+### Enhanced Demo Output
+
+The demo now shows blob state inspection before and after lease acquisition. See **[AZURE_INSPECTION_GUIDE.md](AZURE_INSPECTION_GUIDE.md)** for complete examples and detailed inspection commands.
+
+## Inspecting Lease State in Real-Time
+
+### Quick Inspection Script
+
+Use the provided helper script for easy real-time inspection:
 
 ```bash
-export AZURE_TENANT_ID="your-tenant-id"
-export AZURE_CLIENT_ID="your-client-id"
-export AZURE_CLIENT_SECRET="your-client-secret"
+# One-time inspection
+./inspect-lease-state.sh
+
+# Continuous monitoring (refreshes every 3 seconds)
+./inspect-lease-state.sh --watch
 ```
 
-#### Option D: Managed Identity
+### Manual Azure CLI Inspection
 
-No configuration needed! When running in Azure (VM, App Service, etc.), Managed Identity is automatically used.
-
-### Configuration Options Explained
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `StorageAccountUri` | - | Your Azure Storage account endpoint (required if not using connection string) |
-| `ContainerName` | `"leases"` | Container where lease blobs are stored (created automatically if `CreateContainerIfNotExists` is true) |
-| `CreateContainerIfNotExists` | `true` | Automatically create the container if it doesn't exist |
-| `KeyPrefix` | `"sample-"` | Prefix for lease blob names (final name: `{prefix}{leaseName}`) |
-| `DefaultLeaseDuration` | `"00:00:30"` | Initial lease duration (30 seconds). Azure Blob supports 15-60 seconds |
-| `AutoRenew` | `true` | Enable automatic background renewal |
-| `AutoRenewInterval` | `"00:00:20"` | How often to renew (should be ~2/3 of lease duration) |
-| `AutoRenewRetryInterval` | `"00:00:05"` | Delay between retry attempts when renewal fails |
-| `AutoRenewMaxRetries` | `3` | Maximum retry attempts before marking lease as lost |
-| `AutoRenewSafetyThreshold` | `0.9` | Don't renew if past 90% of lease duration (safety buffer) |
-
-## Running the Sample
-
-### Option 1: Using .NET CLI
+For more control, use Azure CLI directly:
 
 ```bash
-# Navigate to the sample directory
-cd samples/BlobLeaseSample
+# Set connection string
+export AZURE_STORAGE_CONNECTION_STRING=$(cat appsettings.Local.json | grep "ConnectionString" | cut -d '"' -f 4)
 
-# Run in Development mode
-dotnet run --environment Development
+# Show lease state
+az storage blob show \
+  --container-name leases \
+  --name lease-critical-section-lock \
+  --connection-string "$AZURE_STORAGE_CONNECTION_STRING" \
+  --query "{LeaseState:properties.lease.state, Holder:metadata.lease_instanceId}"
 
-# Or run in Production mode
-dotnet run --environment Production
+# Show full metadata
+az storage blob metadata show \
+  --container-name leases \
+  --name lease-critical-section-lock \
+  --connection-string "$AZURE_STORAGE_CONNECTION_STRING"
 ```
 
-### Option 2: Using Visual Studio
+For comprehensive inspection commands and Azure Portal navigation, see **[AZURE_INSPECTION_GUIDE.md](AZURE_INSPECTION_GUIDE.md)**.
 
-1. Open `DistributedLeasing.sln` in Visual Studio
-2. Set `BlobLeaseSample` as the startup project
-3. Press F5 to run
+## Running the Enhanced Demo
 
-### Option 3: Using VS Code
+### Interactive Demo Script
 
-1. Open the sample folder in VS Code
-2. Install the C# extension
-3. Press F5 to run and debug
+Use the demo runner script for guided execution:
 
-## What to Expect
-
-When you run the sample, you should see output like this:
-
-```
-info: BlobLeaseSample.LeaseWorkerService[0]
-      Blob Lease Sample Application starting...
-info: BlobLeaseSample.LeaseWorkerService[0]
-      Attempting to acquire lease for resource 'sample-resource'...
-info: BlobLeaseSample.LeaseWorkerService[0]
-      Successfully acquired lease! LeaseId: abc-123-def-456, AcquiredAt: 2024-01-15 10:30:00, ExpiresAt: 2024-01-15 10:30:30
-info: BlobLeaseSample.LeaseWorkerService[0]
-      Performing work while holding the lease...
-info: BlobLeaseSample.LeaseWorkerService[0]
-      The lease will be automatically renewed in the background.
-info: BlobLeaseSample.LeaseWorkerService[0]
-      Press Ctrl+C to stop and release the lease.
-info: BlobLeaseSample.LeaseWorkerService[0]
-      Lease renewed successfully! LeaseId: abc-123-def-456, NewExpiresAt: 2024-01-15 10:30:50, RenewalCount: 1
-info: BlobLeaseSample.LeaseWorkerService[0]
-      Still holding lease after 00:00:05. Renewal count: 1
-...
+```bash
+./run-competition-demo.sh
 ```
 
-### Testing Multiple Instances
+This interactive script will:
+- Check prerequisites (Azure setup, .NET SDK)
+- Let you choose a demo scenario
+- Display commands for each terminal
+- Show what to observe during the demo
 
-To see distributed locking in action, run multiple instances simultaneously:
+### Manual Execution with Inspection
+
+**Terminal 1 - Instance 1:**
+```bash
+dotnet run --instance us-east-1 --region us-east
+```
+
+**Terminal 2 - Instance 2:**
+```bash
+dotnet run --instance eu-west-1 --region eu-west
+```
+
+**Terminal 3 - Inspection (Optional):**
+```bash
+./inspect-lease-state.sh --watch
+```
+
+
+## Demo Scenarios
+
+### Scenario 1: Simultaneous Startup
+
+Start both instances at the same time to see competition:
 
 ```bash
 # Terminal 1
-dotnet run
+dotnet run --instance us-east-1 --region us-east &
 
-# Terminal 2 (in a new terminal)
-dotnet run
+# Terminal 2 (immediately)
+dotnet run --instance eu-west-1 --region eu-west
 ```
 
-**Expected behavior:**
-- Instance 1 acquires the lease immediately
-- Instance 2 waits for the lease to become available (or times out)
-- When Instance 1 stops, Instance 2 can acquire the lease
+**Result**: First instance to reach Azure wins, second fails immediately.
 
-## Understanding the Code
+### Scenario 2: Takeover on Failure
 
-### Program.cs Structure
+1. Start Instance 1
+2. Verify it's processing work
+3. Stop Instance 1 (simulates crash)
+4. Start Instance 2 within 30 seconds
+5. Instance 2 acquires the lock and continues work
 
-The sample follows a clean architecture with:
+### Scenario 3: Multiple Regions Competing
 
-1. **Host Setup**: Uses Generic Host for dependency injection and lifecycle management
-2. **Configuration**: Binds settings from appsettings.json
-3. **Service Registration**: Registers `ILeaseManager` using `AddBlobLeaseManager()`
-4. **Background Service**: `LeaseWorkerService` demonstrates lease usage
+Run 3+ instances to simulate multi-region deployment:
 
-### Key Patterns Demonstrated
+```bash
+# Terminal 1 - US East
+dotnet run --instance us-east-1 --region us-east
 
-#### Acquiring a Lease
+# Terminal 2 - EU West  
+dotnet run --instance eu-west-1 --region eu-west
 
-```csharp
-// Non-blocking attempt (returns null if unavailable)
-var lease = await _leaseManager.TryAcquireAsync("resource-name");
-
-// Blocking attempt (waits until available or timeout)
-var lease = await _leaseManager.AcquireAsync(
-    "resource-name", 
-    timeout: TimeSpan.FromSeconds(60));
+# Terminal 3 - AP South
+dotnet run --instance ap-south-1 --region ap-south
 ```
 
-#### Event Handling
+**Result**: Only ONE instance wins, all others fail gracefully.
 
-```csharp
-lease.LeaseRenewed += (sender, e) => 
-{
-    _logger.LogInformation("Renewed! Count: {Count}", e.RenewalCount);
-};
+## Using the Automated Demo Script
 
-lease.LeaseRenewalFailed += (sender, e) => 
-{
-    _logger.LogWarning("Renewal failed: {Error}", e.Exception?.Message);
-};
+The `run-demo.sh` script provides the easiest way to run the complete demo in a single terminal.
 
-lease.LeaseLost += (sender, e) => 
-{
-    _logger.LogError("Lease lost! Reason: {Reason}", e.Reason);
-    // Stop any work that depends on the lease
-};
+### Features
+
+✅ **Prerequisites Validation**: Checks for .NET SDK and Azure CLI  
+✅ **Automatic Setup**: Prompts to run setup if configuration is missing  
+✅ **Dual Instance Launch**: Starts both instances automatically  
+✅ **Color-Coded Output**: Green for Instance 1, Cyan for Instance 2  
+✅ **Single Terminal**: No need to juggle multiple windows  
+✅ **Clean Shutdown**: Ctrl+C stops both instances gracefully
+
+### Usage
+
+```bash
+cd samples/BlobLeaseSample
+./run-demo.sh
 ```
 
-#### Graceful Shutdown
+### What You'll See
 
-```csharp
-try
-{
-    // Do work while holding the lease
-    await DoWorkAsync(lease);
-}
-finally
-{
-    // Always release the lease
-    await lease.ReleaseAsync();
-    await lease.DisposeAsync();
-}
+```
+═══════════════════════════════════════════════════════════════
+  DISTRIBUTED LOCK DEMO - DUAL INSTANCE MODE
+═══════════════════════════════════════════════════════════════
+
+Checking prerequisites...
+
+✓ .NET SDK installed (version: 10.0.0)
+✓ Azure CLI installed
+
+Checking configuration...
+
+✓ Configuration found: appsettings.Local.json
+
+Launching instances...
+
+✓ Instance 1 started (PID: 12345) - us-east-1
+✓ Instance 2 started (PID: 12346) - eu-west-1
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[us-east-1] ════════════════════════════════════════════════
+[us-east-1] DISTRIBUTED LOCK DEMO
+[us-east-1] Instance ID: us-east-1
+[us-east-1] Region: us-east
+[us-east-1] ════════════════════════════════════════════════
+
+[eu-west-1] ════════════════════════════════════════════════
+[eu-west-1] DISTRIBUTED LOCK DEMO
+[eu-west-1] Instance ID: eu-west-1
+[eu-west-1] Region: eu-west
+[eu-west-1] ════════════════════════════════════════════════
+
+[us-east-1] ✓ LOCK ACQUIRED SUCCESSFULLY
+[us-east-1] Lease ID: 954d91dc-67fd-409a-b78a...
+
+[eu-west-1] ✗ LOCK ACQUISITION FAILED
+[eu-west-1] Current holder: us-east-1 (us-east region)
+[eu-west-1] Exiting gracefully...
+
+[us-east-1] Processing work item #1 | Elapsed: 00:03
+[us-east-1] Processing work item #2 | Elapsed: 00:06
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Press Ctrl+C to stop the demo
 ```
 
-## Common Scenarios
+### Script Behavior
 
-### Leader Election
+1. **Prerequisites Check**: Validates that .NET SDK is installed
+2. **Configuration Check**: 
+   - If `appsettings.Local.json` exists: Proceeds to launch
+   - If missing: Prompts "Would you like to run the Azure setup script now? (y/n)"
+3. **Instance Launch**: 
+   - Starts Instance 1 (us-east-1) first
+   - Waits 2 seconds to let it acquire the lock
+   - Starts Instance 2 (eu-west-1)
+4. **Output Display**: Merges both outputs with color-coded prefixes
+5. **Cleanup**: On Ctrl+C, gracefully stops both instances and removes temp files
 
-Use leases to elect a leader among multiple instances:
+### Advantages Over Manual Execution
 
-```csharp
-var lease = await _leaseManager.TryAcquireAsync("leader-election");
-if (lease != null)
-{
-    // This instance is the leader
-    await PerformLeaderTasks(lease);
-}
-else
-{
-    // This instance is a follower
-    await PerformFollowerTasks();
-}
+| Feature | Manual (Multiple Terminals) | run-demo.sh |
+|---------|----------------------------|-------------|
+| Terminal Windows Required | 2-3 | 1 |
+| Setup Verification | Manual | Automatic |
+| Color Coding | No | Yes |
+| Instance Identification | Harder (switch windows) | Easy (color + prefix) |
+| Cleanup | Manual (close each) | Automatic (one Ctrl+C) |
+| Time to Start | ~2-3 minutes | ~30 seconds |
+
+### Alternative: Interactive Demo Guide
+
+For a guided manual approach, the `run-competition-demo.sh` script provides step-by-step instructions without executing commands:
+
+```bash
+./run-competition-demo.sh
 ```
 
-### Exclusive Resource Access
+This displays commands for you to run manually in separate terminals, useful for learning or presentations.
 
-Ensure only one instance processes a resource at a time:
+## Understanding the Output
 
-```csharp
-var lease = await _leaseManager.AcquireAsync($"process-{resourceId}");
-try
-{
-    await ProcessResourceExclusively(resourceId);
-}
-finally
-{
-    await lease.ReleaseAsync();
-}
+### Winner Output Breakdown
+
+```
+╔════════════════════════════════════════════════════════╗
+║  ✓ LOCK ACQUIRED SUCCESSFULLY                          ║  ← Lock acquired
+╚════════════════════════════════════════════════════════╝
+
+Lock Details:
+  • Lease ID: 954d91dc-67fd-409a-b78a-90a78e36c928        ← Unique lease identifier
+  • Acquired At: 12/25/2025 07:50:30 +00:00                ← When lock was acquired
+  • Expires At: 12/25/2025 07:51:00 +00:00                 ← Initial expiration (30s)
+  • Instance: us-east-1                                     ← This instance
+  • Region: us-east                                         ← This region
+
+▶ Starting critical work execution...
+  (Auto-renewal is active - lock will be maintained)       ← Renewal running
+
+[us-east-1] Processing work item #1 | Elapsed: 00:03 | Renewals: 0
+        └── Instance ID ──┘                           └── How many times renewed
 ```
 
-### Singleton Job Execution
+### Loser Output Breakdown
 
-Run a background job on only one instance:
+```
+╔════════════════════════════════════════════════════════╗
+║  LOCK ACQUISITION FAILED                               ║  ← Failed to acquire
+║  Another region is currently holding the lock         ║  ← Reason
+╚════════════════════════════════════════════════════════╝
 
-```csharp
-var lease = await _leaseManager.TryAcquireAsync("scheduled-job");
-if (lease != null)
-{
-    try
-    {
-        await ExecuteScheduledJob();
-    }
-    finally
-    {
-        await lease.ReleaseAsync();
-    }
-}
+This instance cannot execute critical work at this time.   ← Cannot proceed
+The lock is held by another instance in a different region.
+Exiting gracefully...                                      ← Clean exit
 ```
 
 ## Troubleshooting
 
-### "Authentication failed" or "Unauthorized"
+### "Invalid URI: The hostname could not be parsed" or "Failed to convert configuration value"
 
-**Cause**: Your identity doesn't have permission to access the storage account.
+**Cause**: The `appsettings.Local.json` file is missing or was not generated, causing the application to use placeholder values from `appsettings.json`.
 
-**Solutions**:
-1. Verify you're logged in: `az login` and `az account show`
-2. Check RBAC permissions in Azure Portal (Storage Account → Access Control → Role assignments)
-3. Grant yourself `Storage Blob Data Contributor` role
-4. Wait a few minutes for permission propagation
+**Symptoms**:
+- Error occurs during application startup
+- Stack trace references `System.Uri..ctor` and `ConfigurationBinder.BindInstance`
+- Error message mentions `[YOUR_STORAGE_ACCOUNT]`
 
-### "Container not found"
+**Fix**:
 
-**Cause**: The container doesn't exist and `CreateContainerIfNotExists` is false.
+The application will automatically display a helpful error message with three options:
 
-**Solutions**:
-1. Set `CreateContainerIfNotExists: true` in appsettings.json
-2. Manually create the container in Azure Portal
-3. Ensure your identity has permission to create containers
+**Option 1 - Run automatic setup:**
+```bash
+./setup-azure-resources.sh
+```
 
-### "Lease could not be acquired"
+**Option 2 - Use interactive configuration:**
+```bash
+dotnet run --configure
+```
 
-**Cause**: Another instance is holding the lease.
+**Option 3 - Manually create appsettings.Local.json:**
+Create the file with either:
+- Connection String mode: Include `ConnectionString` property
+- DefaultAzureCredential mode: Include `StorageAccountUri` property
 
-**Solutions**:
-1. This is expected behavior for distributed locking
-2. Wait for the current lease to expire (check `DefaultLeaseDuration`)
-3. Use `AcquireAsync()` with a timeout to wait automatically
-4. Manually release the lease from Azure Storage Explorer (for debugging only)
+See [Configuration Files](#configuration-files) section for examples.
 
-### "Configuration binding failed"
+### Both instances acquire the lock
 
-**Cause**: Missing or invalid configuration in appsettings.json.
+**Cause**: Running against different storage accounts or containers.
 
-**Solutions**:
-1. Verify JSON syntax is correct
-2. Check that `StorageAccountUri` is set
-3. Ensure section name matches: `"BlobLeasing"`
-4. Review logs for specific validation errors
+**Fix**: Verify both instances use the same `appsettings.Local.json`
+
+### Instance 1 never releases the lock
+
+**Cause**: Not stopping gracefully (kill -9, crash, etc.)
+
+**Fix**: 
+- Always use Ctrl+C for clean shutdown
+- Wait 30 seconds for lease to expire automatically
+- Or manually release from Azure Storage Explorer
+
+### "Authentication failed"
+
+**Cause**: Not logged into Azure CLI or missing permissions.
+
+**Fix**:
+```bash
+az login
+az account set --subscription "Visual Studio Enterprise Subscription"
+```
 
 ### High renewal failures
 
-**Cause**: Network issues or renewal interval too close to lease expiration.
+**Cause**: Network latency or Azure throttling.
 
-**Solutions**:
-1. Increase `DefaultLeaseDuration` (e.g., to 60 seconds)
-2. Adjust `AutoRenewInterval` to be ~2/3 of duration
-3. Check network connectivity to Azure
-4. Review `AutoRenewSafetyThreshold` setting
+**Fix**: Increase `DefaultLeaseDuration` to 60 seconds in appsettings.json
 
-## Best Practices
+### Application hangs during startup
 
-1. **Always release leases**: Use `finally` blocks or `using` statements
-2. **Handle lease loss**: Subscribe to `LeaseLost` event and stop work immediately
-3. **Use appropriate durations**: 30-60 seconds for most scenarios
-4. **Set renewal intervals**: Configure to ~2/3 of lease duration
-5. **Monitor lease health**: Subscribe to all lifecycle events
-6. **Test failure scenarios**: Simulate network issues, crashes, etc.
-7. **Use Managed Identity**: Avoid connection strings in production
-8. **Configure retries**: Set appropriate `AutoRenewMaxRetries` for your scenario
+**Cause**: Waiting for user input during interactive configuration.
 
-## Production Considerations
+**Fix**: 
+- Answer the prompts for Azure Storage Account name and authentication mode
+- Or run setup script first: `./setup-azure-resources.sh`
+- Or create `appsettings.Local.json` manually
 
-When deploying to production:
+### run-demo.sh script not executable
 
-- ✅ Use **Managed Identity** or **Service Principal** authentication
-- ✅ Store sensitive configuration in **Azure Key Vault**
-- ✅ Enable **Application Insights** for telemetry and monitoring
-- ✅ Set up **health checks** using the built-in `LeaseHealthCheck`
-- ✅ Configure **retry policies** appropriate for your workload
-- ✅ Use **separate containers** for different environments (dev/staging/prod)
-- ✅ Monitor lease renewal metrics and set up alerts
-- ✅ Test failover scenarios thoroughly
+**Cause**: Script permissions not set.
+
+**Fix**:
+```bash
+chmod +x run-demo.sh
+./run-demo.sh
+```
+
+### Color-coded output not working
+
+**Cause**: Terminal doesn't support ANSI color codes.
+
+**Fix**: Use a modern terminal emulator (iTerm2, Windows Terminal, GNOME Terminal) or run instances manually in separate terminals.
+
+## Clean Up
+
+Delete all Azure resources:
+
+```bash
+az group delete --name pranshu-rg --yes --no-wait
+```
+
+Delete local configuration:
+
+```bash
+rm appsettings.Local.json
+```
+
+## Architecture
+
+```
+┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+│  Instance 1     │         │  Instance 2     │         │  Instance 3     │
+│  (us-east-1)    │         │  (eu-west-1)    │         │  (ap-south-1)   │
+└────────┬────────┘         └────────┬────────┘         └────────┬────────┘
+         │                           │                           │
+         │   TryAcquireAsync()       │   TryAcquireAsync()       │
+         └───────────┬───────────────┴───────────┬───────────────┘
+                     │                           │
+                     ▼                           ▼
+         ┌─────────────────────────────────────────────────┐
+         │   Azure Blob Storage - Lease Container          │
+         │   ┌───────────────────────────────────┐         │
+         │   │  critical-section-lock (blob)     │         │
+         │   │  • Lease ID: 954d91dc...          │         │
+         │   │  • Held by: us-east-1             │  ✓ Winner
+         │   │  • Expires: 07:51:00 UTC          │         │
+         │   └───────────────────────────────────┘         │
+         └─────────────────────────────────────────────────┘
+                     │                           │
+                     │                           │
+                   SUCCESS                     FAILURE
+                     │                           │
+                     ▼                           ▼
+         ┌─────────────────────┐     ┌─────────────────────┐
+         │  Execute Work       │     │  Exit Gracefully    │
+         │  • Auto-renewal ON  │     │  • Log failure      │
+         │  • Process items    │     │  • Return false     │
+         └─────────────────────┘     └─────────────────────┘
+```
 
 ## Additional Resources
 
-- [DistributedLeasing Documentation](../../README.md)
 - [Azure Blob Storage Leases](https://docs.microsoft.com/azure/storage/blobs/storage-blob-lease)
-- [DefaultAzureCredential](https://docs.microsoft.com/dotnet/api/azure.identity.defaultazurecredential)
-- [Azure RBAC for Storage](https://docs.microsoft.com/azure/storage/blobs/authorize-access-azure-active-directory)
-
-## Support
-
-For issues or questions:
-
-- File an issue on GitHub
-- Check existing documentation
-- Review Azure Storage logs in the portal
+- [Distributed Lock Pattern](https://docs.microsoft.com/azure/architecture/patterns/distributed-lock)
+- [DistributedLeasing Library Documentation](../../README.md)
 
 ## License
 
-This sample is part of the DistributedLeasing project and is licensed under the same terms.
-4. Review `AutoRenewSafetyThreshold` setting
-
-## Best Practices
-
-1. **Always release leases**: Use `finally` blocks or `using` statements
-2. **Handle lease loss**: Subscribe to `LeaseLost` event and stop work immediately
-3. **Use appropriate durations**: 30-60 seconds for most scenarios
-4. **Set renewal intervals**: Configure to ~2/3 of lease duration
-5. **Monitor lease health**: Subscribe to all lifecycle events
-6. **Test failure scenarios**: Simulate network issues, crashes, etc.
-7. **Use Managed Identity**: Avoid connection strings in production
-8. **Configure retries**: Set appropriate `AutoRenewMaxRetries` for your scenario
-
-## Production Considerations
-
-When deploying to production:
-
-- ✅ Use **Managed Identity** or **Service Principal** authentication
-- ✅ Store sensitive configuration in **Azure Key Vault**
-- ✅ Enable **Application Insights** for telemetry and monitoring
-- ✅ Set up **health checks** using the built-in `LeaseHealthCheck`
-- ✅ Configure **retry policies** appropriate for your workload
-- ✅ Use **separate containers** for different environments (dev/staging/prod)
-- ✅ Monitor lease renewal metrics and set up alerts
-- ✅ Test failover scenarios thoroughly
-
-## Additional Resources
-
-- [DistributedLeasing Documentation](../../README.md)
-- [Azure Blob Storage Leases](https://docs.microsoft.com/azure/storage/blobs/storage-blob-lease)
-- [DefaultAzureCredential](https://docs.microsoft.com/dotnet/api/azure.identity.defaultazurecredential)
-- [Azure RBAC for Storage](https://docs.microsoft.com/azure/storage/blobs/authorize-access-azure-active-directory)
-
-## Support
-
-For issues or questions:
-
-- File an issue on GitHub
-- Check existing documentation
-- Review Azure Storage logs in the portal
-
-## License
-
-This sample is part of the DistributedLeasing project and is licensed under the same terms.
+This sample is part of the DistributedLeasing project and is licensed under the MIT License.

@@ -1,7 +1,6 @@
 using DistributedLeasing.Abstractions.Contracts;
-using DistributedLeasing.Abstractions.Events;
-using DistributedLeasing.Abstractions.Exceptions;
 using DistributedLeasing.Azure.Blob;
+using Azure.Storage.Blobs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,41 +9,119 @@ using Microsoft.Extensions.Logging;
 namespace BlobLeaseSample;
 
 /// <summary>
-/// Sample application demonstrating Azure Blob Storage distributed leasing with automatic renewal.
+/// Distributed Lock Demo - Demonstrates lock competition between multiple instances.
 /// </summary>
 /// <remarks>
-/// This sample shows:
-/// - Dependency injection setup for ILeaseManager
-/// - Configuration binding from appsettings.json
-/// - Lease acquisition and automatic renewal
-/// - Event handling for lease lifecycle (renewed, renewal failed, lost)
-/// - Graceful shutdown and lease release
+/// This demo shows:
+/// - Two instances competing for the same lock
+/// - Only one winner executes critical work
+/// - Loser fails gracefully
+/// - Takeover when winner releases lock
+/// 
+/// Usage:
+///   Instance 1: dotnet run --instance us-east-1 --region us-east
+///   Instance 2: dotnet run --instance eu-west-1 --region eu-west
 /// </remarks>
 public class Program
 {
-    public static async Task Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
+        // Check for --configure flag
+        bool forceReconfigure = args.Contains("--configure", StringComparer.OrdinalIgnoreCase);
+        
+        // Check if configuration file exists or if reconfiguration requested
+        if (forceReconfigure || !ConfigurationHelper.CheckLocalConfigurationExists())
+        {
+            var setupSuccess = await ConfigurationHelper.RunInteractiveSetup();
+            if (!setupSuccess)
+            {
+                return 1;
+            }
+        }
+        
+        // Parse command-line arguments for instance identification
+        var instanceId = GetArgument(args, "--instance") ?? $"instance-{Guid.NewGuid():N}";
+        var region = GetArgument(args, "--region") ?? "unknown-region";
+
+        Console.WriteLine("=".PadRight(80, '='));
+        Console.WriteLine($"DISTRIBUTED LOCK DEMO");
+        Console.WriteLine($"Instance ID: {instanceId}");
+        Console.WriteLine($"Region: {region}");
+        Console.WriteLine($"Hostname: {Environment.MachineName}");
+        Console.WriteLine($"Started: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine("=".PadRight(80, '='));
+        Console.WriteLine();
+
         // Build the host with configuration and dependency injection
-        var host = Host.CreateDefaultBuilder(args)
+        IHost host;
+        try
+        {
+            host = Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((context, config) =>
             {
                 config.SetBasePath(Directory.GetCurrentDirectory());
                 config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
                 config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", 
                     optional: true, reloadOnChange: true);
-                
-                // Support for Local environment with connection string
                 config.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
-                
                 config.AddEnvironmentVariables();
             })
             .ConfigureServices((context, services) =>
             {
-                // Register the Blob Lease Manager using configuration binding
-                services.AddBlobLeaseManager(context.Configuration.GetSection("BlobLeasing"));
+                var configuration = context.Configuration;
                 
-                // Register the hosted service that will use the lease manager
-                services.AddHostedService<LeaseWorkerService>();
+                // Build metadata dictionary with instance information
+                var metadata = new Dictionary<string, string>
+                {
+                    { "instanceId", instanceId },
+                    { "region", region },
+                    { "hostname", Environment.MachineName },
+                    { "startTime", DateTimeOffset.UtcNow.ToString("o") }
+                };
+                
+                // Register the Blob Lease Manager using proper configuration binding
+                services.AddBlobLeaseManager(options =>
+                {
+                    // Bind the entire BlobLeasing section to the options object
+                    configuration.GetSection("BlobLeasing").Bind(options);
+                    
+                    // Add metadata to the options
+                    foreach (var kvp in metadata)
+                    {
+                        options.Metadata[kvp.Key] = kvp.Value;
+                    }
+                });
+                
+                // Get connection string for metadata inspector
+                var connectionString = configuration["BlobLeasing:ConnectionString"];
+                var containerName = configuration["BlobLeasing:ContainerName"] ?? "leases";
+                
+                if (!string.IsNullOrEmpty(connectionString))
+                {
+                    var storageAccountName = ExtractStorageAccountName(connectionString);
+                    var blobServiceClient = new BlobServiceClient(connectionString);
+                    var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+                    
+                    // Register metadata inspector
+                    services.AddSingleton(sp =>
+                    {
+                        var logger = sp.GetRequiredService<ILogger<AzureMetadataInspector>>();
+                        return new AzureMetadataInspector(containerClient, logger, containerName, storageAccountName);
+                    });
+                }
+                
+                // Register instance information
+                services.AddSingleton(new InstanceInfo(instanceId, region));
+                
+                // Register the distributed lock worker
+                services.AddSingleton<DistributedLockWorker>(sp =>
+                {
+                    var leaseManager = sp.GetRequiredService<ILeaseManager>();
+                    var logger = sp.GetRequiredService<ILogger<DistributedLockWorker>>();
+                    var instanceInfo = sp.GetRequiredService<InstanceInfo>();
+                    var metadataInspector = sp.GetService<AzureMetadataInspector>();
+                    return new DistributedLockWorker(leaseManager, logger, instanceInfo.InstanceId, instanceInfo.Region, metadataInspector);
+                });
             })
             .ConfigureLogging((context, logging) =>
             {
@@ -53,192 +130,111 @@ public class Program
                 logging.SetMinimumLevel(LogLevel.Information);
             })
             .Build();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Failed to convert configuration") || 
+                                                     ex.Message.Contains("Invalid URI"))
+        {
+            Console.WriteLine();
+            Console.WriteLine("=".PadRight(67, '='));
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("  CONFIGURATION ERROR");
+            Console.ResetColor();
+            Console.WriteLine("=".PadRight(67, '='));
+            Console.WriteLine();
+            Console.WriteLine("The application could not start due to missing or invalid configuration.");
+            Console.WriteLine();
+            Console.WriteLine("Problem: appsettings.Local.json not found or contains placeholders");
+            Console.WriteLine();
+            Console.WriteLine("Solution: Choose one of these options:");
+            Console.WriteLine();
+            Console.WriteLine("  1. Run automatic setup:");
+            Console.WriteLine("     ./setup-azure-resources.sh");
+            Console.WriteLine();
+            Console.WriteLine("  2. Run with interactive configuration:");
+            Console.WriteLine("     dotnet run --configure");
+            Console.WriteLine();
+            Console.WriteLine("  3. Manually create appsettings.Local.json with:");
+            Console.WriteLine("     - StorageAccountUri: https://YOUR_ACCOUNT.blob.core.windows.net");
+            Console.WriteLine("     - ConnectionString: DefaultEndpointsProtocol=https;...");
+            Console.WriteLine();
+            Console.WriteLine("For more help, see: README.md");
+            Console.WriteLine();
+            Console.WriteLine("=".PadRight(67, '='));
+            Console.WriteLine();
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"ERROR: Failed to start application: {ex.Message}");
+            Console.ResetColor();
+            Console.WriteLine();
+            return 1;
+        }
 
-        // Run the application
-        await host.RunAsync();
+        // Get the worker and execute the lock demo
+        var worker = host.Services.GetRequiredService<DistributedLockWorker>();
+        var cancellationTokenSource = new CancellationTokenSource();
+        
+        // Handle Ctrl+C gracefully
+        Console.CancelKeyPress += (sender, e) =>
+        {
+            e.Cancel = true;
+            cancellationTokenSource.Cancel();
+        };
+
+        try
+        {
+            await worker.TryExecuteWithLockAsync(cancellationTokenSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("\nShutdown requested...");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"\nERROR: {ex.Message}");
+            return 1;
+        }
+
+        Console.WriteLine("\nDemo completed. Press any key to exit...");
+        Console.ReadKey();
+        return 0;
+    }
+
+    private static string ExtractStorageAccountName(string? connectionString)
+    {
+        if (string.IsNullOrEmpty(connectionString))
+            return "unknown";
+
+        // Extract AccountName from connection string
+        var parts = connectionString.Split(';');
+        foreach (var part in parts)
+        {
+            if (part.Trim().StartsWith("AccountName=", StringComparison.OrdinalIgnoreCase))
+            {
+                return part.Substring(part.IndexOf('=') + 1).Trim();
+            }
+        }
+        
+        return "unknown";
+    }
+
+    private static string? GetArgument(string[] args, string argName)
+    {
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i].Equals(argName, StringComparison.OrdinalIgnoreCase))
+            {
+                return args[i + 1];
+            }
+        }
+        return null;
     }
 }
 
 /// <summary>
-/// Background service that demonstrates lease acquisition, automatic renewal, and event handling.
+/// Instance information for identification and metadata.
 /// </summary>
-public class LeaseWorkerService : BackgroundService
-{
-    private readonly ILeaseManager _leaseManager;
-    private readonly ILogger<LeaseWorkerService> _logger;
-    private readonly IHostApplicationLifetime _applicationLifetime;
-    private ILease? _currentLease;
-
-    public LeaseWorkerService(
-        ILeaseManager leaseManager,
-        ILogger<LeaseWorkerService> logger,
-        IHostApplicationLifetime applicationLifetime)
-    {
-        _leaseManager = leaseManager ?? throw new ArgumentNullException(nameof(leaseManager));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _applicationLifetime = applicationLifetime ?? throw new ArgumentNullException(nameof(applicationLifetime));
-    }
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        _logger.LogInformation("Blob Lease Sample Application starting...");
-
-        try
-        {
-            // Attempt to acquire a lease for a named resource
-            _logger.LogInformation("Attempting to acquire lease for resource 'sample-resource'...");
-            
-            _currentLease = await _leaseManager.TryAcquireAsync(
-                leaseName: "sample-resource",
-                duration: null, // Use default duration from configuration
-                cancellationToken: stoppingToken);
-
-            if (_currentLease == null)
-            {
-                _logger.LogWarning("Failed to acquire lease. Another instance may be holding it.");
-                _logger.LogInformation("The lease will be automatically retried when it becomes available.");
-                
-                // In a real application, you might want to retry or exit gracefully
-                // For this sample, we'll wait a bit and try again
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
-                
-                // Try using AcquireAsync which waits for the lease to become available
-                _logger.LogInformation("Waiting to acquire lease (will block until available)...");
-                _currentLease = await _leaseManager.AcquireAsync(
-                    leaseName: "sample-resource",
-                    timeout: TimeSpan.FromSeconds(60),
-                    cancellationToken: stoppingToken);
-            }
-
-            _logger.LogInformation(
-                "Successfully acquired lease! LeaseId: {LeaseId}, AcquiredAt: {AcquiredAt}, ExpiresAt: {ExpiresAt}",
-                _currentLease.LeaseId,
-                _currentLease.AcquiredAt,
-                _currentLease.ExpiresAt);
-
-            // Subscribe to lease lifecycle events
-            SubscribeToLeaseEvents(_currentLease);
-
-            // Simulate doing work while holding the lease
-            _logger.LogInformation("Performing work while holding the lease...");
-            _logger.LogInformation("The lease will be automatically renewed in the background.");
-            _logger.LogInformation("Press Ctrl+C to stop and release the lease.");
-
-            // Keep working until cancellation is requested
-            var workDuration = TimeSpan.Zero;
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
-                workDuration += TimeSpan.FromSeconds(5);
-
-                // Check if we still have the lease
-                if (_currentLease.IsAcquired)
-                {
-                    _logger.LogInformation(
-                        "Still holding lease after {Duration:hh\\:mm\\:ss}. Renewal count: {RenewalCount}",
-                        workDuration,
-                        _currentLease.RenewalCount);
-                }
-                else
-                {
-                    _logger.LogError("Lease was lost! Stopping work.");
-                    break;
-                }
-            }
-        }
-        catch (LeaseException ex)
-        {
-            _logger.LogError(ex, "Lease operation failed: {Message}", ex.Message);
-        }
-        catch (TimeoutException ex)
-        {
-            _logger.LogError(ex, "Timeout waiting for lease: {Message}", ex.Message);
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("Application is shutting down...");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error occurred: {Message}", ex.Message);
-        }
-        finally
-        {
-            // Clean up and release the lease
-            if (_currentLease != null)
-            {
-                await ReleaseLeaseAsync(_currentLease);
-            }
-
-            _logger.LogInformation("Blob Lease Sample Application stopped.");
-        }
-    }
-
-    /// <summary>
-    /// Subscribe to lease lifecycle events for monitoring and logging.
-    /// </summary>
-    private void SubscribeToLeaseEvents(ILease lease)
-    {
-        // Event: Lease successfully renewed
-        lease.LeaseRenewed += (sender, e) =>
-        {
-            _logger.LogInformation(
-                "Lease renewed successfully! LeaseId: {LeaseId}, NewExpiration: {NewExpiration}, RenewalDuration: {RenewalDuration}",
-                e.LeaseId,
-                e.NewExpiration,
-                e.RenewalDuration);
-        };
-
-        // Event: Lease renewal failed (but will retry)
-        lease.LeaseRenewalFailed += (sender, e) =>
-        {
-            _logger.LogWarning(
-                "Lease renewal failed! LeaseId: {LeaseId}, Error: {Error}, WillRetry: {WillRetry}, AttemptNumber: {AttemptNumber}",
-                e.LeaseId,
-                e.Exception?.Message ?? "Unknown error",
-                e.WillRetry,
-                e.AttemptNumber);
-        };
-
-        // Event: Lease definitively lost (cannot be renewed)
-        lease.LeaseLost += (sender, e) =>
-        {
-            _logger.LogError(
-                "Lease lost! LeaseId: {LeaseId}, Reason: {Reason}",
-                e.LeaseId,
-                e.Reason);
-
-            // In a real application, you would stop any work that depends on having the lease
-            _logger.LogWarning("Stopping application because lease was lost...");
-            _applicationLifetime.StopApplication();
-        };
-    }
-
-    /// <summary>
-    /// Explicitly release the lease to make it immediately available to other instances.
-    /// </summary>
-    private async Task ReleaseLeaseAsync(ILease lease)
-    {
-        try
-        {
-            _logger.LogInformation("Releasing lease {LeaseId}...", lease.LeaseId);
-            await lease.ReleaseAsync();
-            _logger.LogInformation("Lease released successfully.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to release lease: {Message}", ex.Message);
-        }
-        finally
-        {
-            // Dispose the lease to clean up resources
-            await lease.DisposeAsync();
-        }
-    }
-
-    public override async Task StopAsync(CancellationToken cancellationToken)
-    {
-        _logger.LogInformation("Stop requested. Releasing lease...");
-        await base.StopAsync(cancellationToken);
-    }
-}
+public record InstanceInfo(string InstanceId, string Region);
