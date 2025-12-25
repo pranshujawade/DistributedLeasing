@@ -188,6 +188,13 @@ appsettings.*.local.json
 appsettings.Local.json
 secrets.json
 
+# Azure Storage Account cache and credentials (sample project)
+.azure-storage-cache
+.azure-credentials
+
+# Temporary demo output files
+/tmp/blob-lease-demo-*.log
+
 # Temporary Azure credentials
 *.publishsettings
 
