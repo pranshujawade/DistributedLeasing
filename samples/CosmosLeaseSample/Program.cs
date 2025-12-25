@@ -1,15 +1,15 @@
 using DistributedLeasing.Abstractions.Contracts;
-using DistributedLeasing.Azure.Blob;
-using Azure.Storage.Blobs;
+using DistributedLeasing.Azure.Cosmos;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace BlobLeaseSample;
+namespace CosmosLeaseSample;
 
 /// <summary>
-/// Distributed Lock Demo - Demonstrates lock competition between multiple instances.
+/// Distributed Lock Demo - Demonstrates lock competition between multiple instances using Cosmos DB.
 /// </summary>
 /// <remarks>
 /// This demo shows:
@@ -70,11 +70,11 @@ public class Program
                     { "startTime", DateTimeOffset.UtcNow.ToString("o") }
                 };
                 
-                // Register the Blob Lease Manager using proper configuration binding
-                services.AddBlobLeaseManager(options =>
+                // Register the Cosmos Lease Manager using proper configuration binding
+                services.AddCosmosLeaseManager(options =>
                 {
-                    // Bind the entire BlobLeasing section to the options object
-                    configuration.GetSection("BlobLeasing").Bind(options);
+                    // Bind the entire CosmosLeasing section to the options object
+                    configuration.GetSection("CosmosLeasing").Bind(options);
                     
                     // Add metadata to the options
                     foreach (var kvp in metadata)
@@ -83,21 +83,35 @@ public class Program
                     }
                 });
                 
-                // Get connection string for metadata inspector
-                var connectionString = configuration["BlobLeasing:ConnectionString"];
-                var containerName = configuration["BlobLeasing:ContainerName"] ?? "leases";
+                // Get configuration for metadata inspector
+                var connectionString = configuration["CosmosLeasing:ConnectionString"];
+                var accountEndpoint = configuration["CosmosLeasing:AccountEndpoint"];
+                var databaseName = configuration["CosmosLeasing:DatabaseName"] ?? "DistributedLeasing";
+                var containerName = configuration["CosmosLeasing:ContainerName"] ?? "Leases";
                 
-                if (!string.IsNullOrEmpty(connectionString))
+                if (!string.IsNullOrEmpty(connectionString) || !string.IsNullOrEmpty(accountEndpoint))
                 {
-                    var storageAccountName = ExtractStorageAccountName(connectionString);
-                    var blobServiceClient = new BlobServiceClient(connectionString);
-                    var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
+                    var accountName = ExtractAccountName(connectionString, accountEndpoint);
                     
                     // Register metadata inspector
                     services.AddSingleton(sp =>
                     {
-                        var logger = sp.GetRequiredService<ILogger<AzureMetadataInspector>>();
-                        return new AzureMetadataInspector(containerClient, logger, containerName, storageAccountName);
+                        var logger = sp.GetRequiredService<ILogger<CosmosMetadataInspector>>();
+                        var leaseManager = sp.GetRequiredService<ILeaseManager>();
+                        
+                        // Access the provider's container
+                        CosmosClient? cosmosClient = null;
+                        if (!string.IsNullOrEmpty(connectionString))
+                        {
+                            cosmosClient = new CosmosClient(connectionString);
+                        }
+                        else if (!string.IsNullOrEmpty(accountEndpoint))
+                        {
+                            cosmosClient = new CosmosClient(accountEndpoint, new Azure.Identity.DefaultAzureCredential());
+                        }
+                        
+                        var container = cosmosClient?.GetContainer(databaseName, containerName);
+                        return new CosmosMetadataInspector(container!, logger, containerName, databaseName, accountName);
                     });
                 }
                 
@@ -110,7 +124,7 @@ public class Program
                     var leaseManager = sp.GetRequiredService<ILeaseManager>();
                     var logger = sp.GetRequiredService<ILogger<DistributedLockWorker>>();
                     var instanceInfo = sp.GetRequiredService<InstanceInfo>();
-                    var metadataInspector = sp.GetService<AzureMetadataInspector>();
+                    var metadataInspector = sp.GetService<CosmosMetadataInspector>();
                     return new DistributedLockWorker(leaseManager, logger, instanceInfo.InstanceId, instanceInfo.Region, metadataInspector);
                 });
             })
@@ -139,14 +153,14 @@ public class Program
             Console.WriteLine("Solution: Choose one of these options:");
             Console.WriteLine();
             Console.WriteLine("  1. Run automatic setup:");
-            Console.WriteLine("     ./setup-azure-resources.sh");
+            Console.WriteLine("     ./setup-resources.sh");
             Console.WriteLine();
             Console.WriteLine("  2. Run with interactive configuration:");
             Console.WriteLine("     dotnet run --configure");
             Console.WriteLine();
             Console.WriteLine("  3. Manually create appsettings.Local.json with:");
-            Console.WriteLine("     - StorageAccountUri: https://YOUR_ACCOUNT.blob.core.windows.net");
-            Console.WriteLine("     - ConnectionString: DefaultEndpointsProtocol=https;...");
+            Console.WriteLine("     - AccountEndpoint: https://YOUR_ACCOUNT.documents.azure.com:443/");
+            Console.WriteLine("     - ConnectionString: AccountEndpoint=https://...");
             Console.WriteLine();
             Console.WriteLine("For more help, see: README.md");
             Console.WriteLine();
@@ -194,18 +208,40 @@ public class Program
         return 0;
     }
 
-    private static string ExtractStorageAccountName(string? connectionString)
+    private static string ExtractAccountName(string? connectionString, string? accountEndpoint)
     {
-        if (string.IsNullOrEmpty(connectionString))
-            return "unknown";
-
-        // Extract AccountName from connection string
-        var parts = connectionString.Split(';');
-        foreach (var part in parts)
+        if (!string.IsNullOrEmpty(accountEndpoint))
         {
-            if (part.Trim().StartsWith("AccountName=", StringComparison.OrdinalIgnoreCase))
+            try
             {
-                return part.Substring(part.IndexOf('=') + 1).Trim();
+                var uri = new Uri(accountEndpoint);
+                return uri.Host.Split('.')[0];
+            }
+            catch
+            {
+                return "unknown";
+            }
+        }
+
+        if (!string.IsNullOrEmpty(connectionString))
+        {
+            // Extract AccountEndpoint from connection string
+            var parts = connectionString.Split(';');
+            foreach (var part in parts)
+            {
+                if (part.Trim().StartsWith("AccountEndpoint=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var endpoint = part.Substring(part.IndexOf('=') + 1).Trim();
+                    try
+                    {
+                        var uri = new Uri(endpoint);
+                        return uri.Host.Split('.')[0];
+                    }
+                    catch
+                    {
+                        return "unknown";
+                    }
+                }
             }
         }
         

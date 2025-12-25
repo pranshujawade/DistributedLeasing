@@ -1,9 +1,8 @@
 using DistributedLeasing.Abstractions.Contracts;
 using DistributedLeasing.Abstractions.Events;
 using Microsoft.Extensions.Logging;
-using Azure.Storage.Blobs;
 
-namespace BlobLeaseSample;
+namespace CosmosLeaseSample;
 
 /// <summary>
 /// Demonstrates distributed lock acquisition where multiple instances compete for a single lock.
@@ -16,14 +15,14 @@ public class DistributedLockWorker
     private readonly string _instanceId;
     private readonly string _region;
     private readonly string _lockName;
-    private readonly AzureMetadataInspector? _metadataInspector;
+    private readonly CosmosMetadataInspector? _metadataInspector;
 
     public DistributedLockWorker(
         ILeaseManager leaseManager,
         ILogger<DistributedLockWorker> logger,
         string instanceId,
         string region,
-        AzureMetadataInspector? metadataInspector = null)
+        CosmosMetadataInspector? metadataInspector = null)
     {
         _leaseManager = leaseManager ?? throw new ArgumentNullException(nameof(leaseManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -103,7 +102,8 @@ public class DistributedLockWorker
         cts.CancelAfter(executionDuration);
 
         try
-        {            while (!cts.Token.IsCancellationRequested)
+        {
+            while (!cts.Token.IsCancellationRequested)
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(100), cts.Token);
 
@@ -189,12 +189,11 @@ public class DistributedLockWorker
 
         try
         {
-            var blobName = $"lease-{_lockName}";
-            var result = await _metadataInspector.InspectBlobStateAsync(blobName, cancellationToken);
+            var result = await _metadataInspector.InspectDocumentStateAsync(_lockName, cancellationToken);
             
-            if (result != null && result.Exists && result.Metadata.TryGetValue("lease_instanceId", out var holderId))
+            if (result != null && result.Exists && result.Metadata.TryGetValue("instanceId", out var holderId))
             {
-                var holderRegion = result.Metadata.TryGetValue("lease_region", out var region) ? region : "unknown";
+                var holderRegion = result.Metadata.TryGetValue("region", out var region) ? region : "unknown";
                 _logger.LogWarning("[{Instance}] ✗ Lock unavailable | Held by: {HolderId} ({HolderRegion})", 
                     _instanceId, holderId, holderRegion);
             }

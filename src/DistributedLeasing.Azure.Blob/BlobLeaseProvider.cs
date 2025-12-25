@@ -74,14 +74,7 @@ namespace DistributedLeasing.Azure.Blob
                 var blobClient = await GetOrCreateBlobAsync(leaseName, cancellationToken)
                     .ConfigureAwait(false);
 
-                // Update blob metadata with user-provided metadata before acquiring lease
-                if (_options.Metadata != null && _options.Metadata.Any())
-                {
-                    await UpdateBlobMetadataAsync(blobClient, leaseName, cancellationToken)
-                        .ConfigureAwait(false);
-                }
-
-                // Attempt to acquire the lease
+                // Attempt to acquire the lease first
                 var leaseClient = blobClient.GetBlobLeaseClient();
                 
                 var leaseDuration = duration == Timeout.InfiniteTimeSpan
@@ -93,12 +86,26 @@ namespace DistributedLeasing.Azure.Blob
                     cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
+                // Update blob metadata with user-provided metadata after acquiring lease
+                // This is safe because we now hold the lease
+                if (_options.Metadata != null && _options.Metadata.Any())
+                {
+                    await UpdateBlobMetadataAsync(blobClient, response.Value.LeaseId, leaseName, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
                 // Pass options to enable auto-renewal support
                 return new BlobLease(leaseClient, leaseName, duration, _options);
             }
-            catch (RequestFailedException ex) when (ex.Status == 409)
+            catch (RequestFailedException ex) when (ex.Status == 409 || ex.ErrorCode == "LeaseAlreadyPresent")
             {
                 // 409 Conflict - lease is already held by another instance
+                return null;
+            }
+            catch (RequestFailedException ex) when (ex.Status == 412 || ex.ErrorCode == "LeaseIdMissing")
+            {
+                // 412 Precondition Failed - blob is leased and we didn't provide the lease ID
+                // This means another instance holds the lease
                 return null;
             }
             catch (RequestFailedException ex) when (ex.Status == 404)
@@ -286,8 +293,13 @@ namespace DistributedLeasing.Azure.Blob
         /// <summary>
         /// Updates blob metadata with user-provided metadata from LeaseOptions.
         /// </summary>
+        /// <remarks>
+        /// This method should only be called after successfully acquiring a lease.
+        /// The lease ID ensures the metadata update is atomic and safe.
+        /// </remarks>
         private async Task UpdateBlobMetadataAsync(
             BlobClient blobClient,
+            string leaseId,
             string leaseName,
             CancellationToken cancellationToken)
         {
@@ -295,7 +307,7 @@ namespace DistributedLeasing.Azure.Blob
             {
                 // Get existing metadata
                 var properties = await blobClient.GetPropertiesAsync(
-                    conditions: null, 
+                    conditions: new BlobRequestConditions { LeaseId = leaseId },
                     cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
                 
@@ -310,16 +322,17 @@ namespace DistributedLeasing.Azure.Blob
                 // Update last modified timestamp
                 metadata["lastModified"] = DateTimeOffset.UtcNow.ToString("o");
 
-                // Set metadata
+                // Set metadata with lease condition to ensure atomicity
                 await blobClient.SetMetadataAsync(
-                    metadata: metadata, 
-                    conditions: null, 
+                    metadata: metadata,
+                    conditions: new BlobRequestConditions { LeaseId = leaseId },
                     cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (RequestFailedException ex) when (ex.Status == 409)
+            catch (RequestFailedException ex) when (ex.Status == 409 || ex.Status == 412)
             {
-                // Metadata update conflict - not critical, continue with lease acquisition
+                // Metadata update conflict or lease lost - log but don't fail
+                // The lease acquisition was successful, metadata is optional
             }
         }
 
