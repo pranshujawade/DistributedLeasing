@@ -33,7 +33,9 @@ public class ChaosLeaseProvider : ILeaseProvider
 {
     private readonly ILeaseProvider _inner;
     private readonly ChaosPolicy _policy;
-    private readonly Random _random = new();
+#if !NET6_0_OR_GREATER
+    private static readonly ThreadLocal<Random> _randomLocal = new ThreadLocal<Random>(() => new Random());
+#endif
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChaosLeaseProvider"/> class.
@@ -73,12 +75,22 @@ public class ChaosLeaseProvider : ILeaseProvider
         if (!_policy.FaultTypes.HasFlag(ChaosFaultType.Delay))
             return;
 
-        if (_random.NextDouble() < _policy.FailureRate)
+#if NET6_0_OR_GREATER
+        if (Random.Shared.NextDouble() < _policy.FailureRate)
         {
             var delay = TimeSpan.FromMilliseconds(
-                _random.Next(
+                Random.Shared.Next(
                     (int)_policy.MinDelay.TotalMilliseconds,
                     (int)_policy.MaxDelay.TotalMilliseconds));
+#else
+        var random = _randomLocal.Value!;
+        if (random.NextDouble() < _policy.FailureRate)
+        {
+            var delay = TimeSpan.FromMilliseconds(
+                random.Next(
+                    (int)_policy.MinDelay.TotalMilliseconds,
+                    (int)_policy.MaxDelay.TotalMilliseconds));
+#endif
 
             await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
         }
@@ -89,7 +101,11 @@ public class ChaosLeaseProvider : ILeaseProvider
         if (!_policy.FaultTypes.HasFlag(ChaosFaultType.Exception))
             return;
 
-        if (_random.NextDouble() < _policy.FailureRate)
+#if NET6_0_OR_GREATER
+        if (Random.Shared.NextDouble() < _policy.FailureRate)
+#else
+        if (_randomLocal.Value!.NextDouble() < _policy.FailureRate)
+#endif
         {
             throw new ProviderUnavailableException(
                 $"Chaos fault injection in {operation}")

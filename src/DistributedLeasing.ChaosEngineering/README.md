@@ -3,35 +3,41 @@
 [![NuGet](https://img.shields.io/nuget/v/DistributedLeasing.ChaosEngineering.svg)](https://www.nuget.org/packages/DistributedLeasing.ChaosEngineering/)
 [![Downloads](https://img.shields.io/nuget/dt/DistributedLeasing.ChaosEngineering.svg)](https://www.nuget.org/packages/DistributedLeasing.ChaosEngineering/)
 
-**Chaos engineering toolkit for testing distributed leasing resilience**
+**Comprehensive chaos engineering toolkit for testing distributed leasing resilience**
 
-This package provides controlled failure injection for testing the resilience and fault tolerance of distributed leasing systems. Use it to validate your application's behavior under various failure scenarios.
+This package provides a SOLID-compliant chaos engineering framework for testing the resilience and fault tolerance of distributed leasing systems. Use it to validate your application's behavior under various failure scenarios with controlled, observable, and configurable fault injection.
 
 ⚠️ **FOR TESTING ONLY - NOT FOR PRODUCTION USE**
 
+## What's New in Version 5.x
+
+🎉 **Major Architectural Improvements:**
+- ✅ **SOLID Principles** - Clean architecture with Strategy, Policy, and Observer patterns
+- ✅ **Full Lifecycle Coverage** - Fault injection for ALL operations (Acquire, **Renew**, **Release**, Break)
+- ✅ **Thread-Safe** - Proper synchronization for multi-threaded scenarios
+- ✅ **Configuration Validation** - Fail-fast with comprehensive validation
+- ✅ **Observability** - Multiple observer types for debugging and monitoring
+- ✅ **Extensible** - Easy to add custom fault strategies and policies
+
+📖 **[Migration Guide](#migration-from-legacy-api)** available for users of the previous API.
+
 ## Features
 
-✅ **Controlled Failure Injection** - Simulate specific failure scenarios  
-✅ **Configurable Probability** - Set failure rates for chaos testing  
-✅ **Latency Injection** - Add artificial delays to test timeout handling  
-✅ **Intermittent Failures** - Simulate network hiccups and transient errors  
-✅ **Integration Testing** - Validate error handling and retry logic  
-✅ **Decorator Pattern** - Wraps any lease provider for easy testing
+### Core Capabilities
+✅ **Multiple Fault Types** - Delay, Exception, Timeout, Intermittent patterns  
+✅ **Decision Policies** - Probabilistic, Deterministic, Threshold-based  
+✅ **Full Lifecycle** - Covers Acquire, Renew, Release, and Break operations  
+✅ **Per-Operation Config** - Different chaos settings for each operation  
+✅ **Thread-Safe** - Safe for concurrent usage across .NET versions  
+✅ **Observable** - Console, Diagnostic, and Composite observers  
+✅ **Configurable** - Fluent builder API with validation  
 
-## When to Use This Package
-
-**Use This Package When:**
-- Writing integration tests for distributed leasing logic
-- Validating error handling and retry mechanisms
-- Testing lease timeout and expiration scenarios
-- Simulating network failures and latency
-- Chaos engineering experiments
-- Load testing with controlled failures
-
-**Do NOT Use This Package:**
-- ❌ In production environments
-- ❌ As primary lease provider implementation
-- ❌ Without explicit test isolation
+### Advanced Features
+✅ **Deterministic Testing** - Sequence-based fault injection for reproducible tests  
+✅ **Threshold Policies** - Count and time-based fault limits  
+✅ **Pattern-Based Faults** - Intermittent failure patterns  
+✅ **Auto-Renewal Testing** - Simulate renewal failures  
+✅ **Metadata Tagging** - Environment and custom metadata support  
 
 ## Installation
 
@@ -43,147 +49,299 @@ Install only in test projects, not in production code.
 
 ## Quick Start
 
-### Basic Chaos Testing
+### Basic Chaos Testing (Simple API)
 
 ```csharp
 using DistributedLeasing.ChaosEngineering;
-using DistributedLeasing.Azure.Blob;
+using DistributedLeasing.ChaosEngineering.Faults.Strategies;
+using DistributedLeasing.ChaosEngineering.Policies.Implementations;
+using DistributedLeasing.ChaosEngineering.Configuration;
+using DistributedLeasing.ChaosEngineering.Lifecycle;
 
-// Create your actual lease provider
-var actualProvider = new BlobLeaseProvider(new BlobLeaseProviderOptions
-{
-    ContainerUri = testContainerUri,
-    Credential = credential
-});
+// 1. Create fault strategies
+var delayStrategy = new DelayFaultStrategy(
+    TimeSpan.FromMilliseconds(100),
+    TimeSpan.FromMilliseconds(500));
 
-// Wrap with chaos provider
-var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-{
-    AcquireFailureProbability = 0.3,  // 30% of acquisitions fail
-    RenewFailureProbability = 0.2,     // 20% of renewals fail
-    ReleaseFailureProbability = 0.1    // 10% of releases fail
-});
+var exceptionStrategy = ExceptionFaultStrategy.Create<ProviderUnavailableException>(
+    "Chaos fault injection");
 
-// Use in tests
-var leaseManager = await chaosProvider.CreateLeaseManagerAsync("test-lock");
-var lease = await leaseManager.TryAcquireAsync();
+// 2. Create a policy (10% failure rate)
+var policy = new ProbabilisticPolicy(0.1, delayStrategy, exceptionStrategy);
 
-// Test your error handling
-if (lease == null)
-{
-    // Your code should handle this gracefully
-    Assert.NotNull(fallbackMechanism);
-}
+// 3. Configure chaos options
+var options = new ChaosOptionsBuilder()
+    .Enable()
+    .WithProviderName("TestChaosProvider")
+    .WithDefaultPolicy(policy)
+    .Build();
+
+// 4. Wrap your actual provider
+var chaosProvider = new ChaosLeaseProviderV2(actualProvider, options);
+
+// 5. Use as normal ILeaseProvider
+var lease = await chaosProvider.AcquireLeaseAsync("my-lease", TimeSpan.FromMinutes(5));
 ```
 
-### Latency Injection
+### With Observability
 
 ```csharp
-var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-{
-    MinLatency = TimeSpan.FromMilliseconds(100),  // Minimum 100ms delay
-    MaxLatency = TimeSpan.FromMilliseconds(500),  // Maximum 500ms delay
-    LatencyProbability = 0.5                       // 50% of operations delayed
-});
+using DistributedLeasing.ChaosEngineering.Observability;
 
-// Test timeout handling
-var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-try
-{
-    var lease = await leaseManager.AcquireAsync(cancellationToken: cts.Token);
-}
-catch (OperationCanceledException)
-{
-    // Verify your code handles timeouts correctly
-    Assert.True(true);
-}
+// Create an observer to see chaos events
+var observer = new ConsoleChaosObserver(useColors: true, includeTimestamps: true);
+
+var options = new ChaosOptionsBuilder()
+    .Enable()
+    .WithDefaultPolicy(policy)
+    .Build();
+
+var chaosProvider = new ChaosLeaseProviderV2(actualProvider, options, observer);
+
+// Console will show colorful output like:
+// [2024-12-26 10:30:45.123] [INJECT] Decision by 'ProbabilisticPolicy' for AcquireAsync on 'my-lease': Random value 0.0543 < threshold 0.1000 (Strategy: DelayFaultStrategy)
+// [2024-12-26 10:30:45.150] [EXECUTING] Fault 'DelayFaultStrategy' (Severity: Low) for AcquireAsync on 'my-lease'
+// [2024-12-26 10:30:45.652] [EXECUTED] Fault 'DelayFaultStrategy' completed in 502.35ms for AcquireAsync on 'my-lease'
 ```
 
-### Intermittent Failures
+## Fault Strategies
+
+### Delay Fault (Latency Injection)
 
 ```csharp
-var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-{
-    // Fail 2 out of every 5 operations
-    FailurePattern = new[] { false, true, false, true, false }
-});
+// Fixed delay
+var fixedDelay = new DelayFaultStrategy(TimeSpan.FromMilliseconds(500));
 
-// Test retry logic
-int attempts = 0;
-ILease? lease = null;
-
-while (lease == null && attempts < 5)
-{
-    lease = await leaseManager.TryAcquireAsync();
-    attempts++;
-}
-
-Assert.NotNull(lease);  // Should succeed after retries
-Assert.True(attempts > 1);  // Verify retries happened
+// Variable delay (random between min and max)
+var variableDelay = new DelayFaultStrategy(
+    TimeSpan.FromMilliseconds(100),
+    TimeSpan.FromSeconds(2));
 ```
 
-## Chaos Options
-
-### Failure Probabilities
+### Exception Fault
 
 ```csharp
-public class ChaosOptions
-{
-    // Probability of acquire operation failing (0.0 - 1.0)
-    public double AcquireFailureProbability { get; set; } = 0.0;
+// Generic exception
+var exceptionStrategy = ExceptionFaultStrategy.Create<ProviderUnavailableException>(
+    "Simulated provider failure");
 
-    // Probability of renew operation failing (0.0 - 1.0)
-    public double RenewFailureProbability { get; set; } = 0.0;
+// Custom exception with constructor parameters
+var timeoutStrategy = ExceptionFaultStrategy.Create<TimeoutException>(
+    "Operation timed out due to chaos");
+```
 
-    // Probability of release operation failing (0.0 - 1.0)
-    public double ReleaseFailureProbability { get; set; } = 0.0;
+### Timeout Fault
 
-    // Probability of any operation being delayed (0.0 - 1.0)
-    public double LatencyProbability { get; set; } = 0.0;
+```csharp
+// Simulates operation cancellation after timeout
+var timeoutFault = new TimeoutFaultStrategy(TimeSpan.FromSeconds(5));
+// After 5 seconds, throws OperationCanceledException
+```
 
-    // Minimum latency to inject
-    public TimeSpan MinLatency { get; set; } = TimeSpan.Zero;
+### Intermittent Fault (Pattern-Based)
 
-    // Maximum latency to inject
-    public TimeSpan MaxLatency { get; set; } = TimeSpan.Zero;
+```csharp
+// Fail first 3 attempts
+var strategy = IntermittentFaultStrategy.FailFirstN(3, exceptionStrategy);
 
-    // Custom failure pattern (overrides probabilities)
-    public bool[]? FailurePattern { get; set; } = null;
+// Fail every 3rd attempt
+var strategy = IntermittentFaultStrategy.FailEveryN(3, exceptionStrategy);
 
-    // Exception type to throw on failure
-    public Type ExceptionType { get; set; } = typeof(LeaseException);
+// Custom pattern: true = inject, false = skip
+var pattern = new[] { false, false, true, false }; // Fail every 3rd
+var strategy = new IntermittentFaultStrategy(pattern, exceptionStrategy);
+```
 
-    // Custom exception message
-    public string FailureMessage { get; set; } = "Chaos engineering failure";
-}
+## Decision Policies
+
+### Probabilistic Policy (Random)
+
+```csharp
+// 20% chance of fault injection
+var policy = new ProbabilisticPolicy(0.2, delayStrategy, exceptionStrategy);
+
+// Randomly selects one of the provided strategies when injecting
+```
+
+### Deterministic Policy (Sequence-Based)
+
+```csharp
+// Fail first 3 operations, then succeed
+var policy = DeterministicPolicy.FailFirstN(3, exceptionStrategy);
+
+// Fail every 5th operation
+var policy = DeterministicPolicy.FailEveryN(5, exceptionStrategy);
+
+// Alternate: fail, succeed, fail, succeed...
+var policy = DeterministicPolicy.Alternate(exceptionStrategy);
+
+// Custom sequence
+var sequence = new List<bool> { true, true, false, false }; // fail 2, succeed 2, repeat
+var policy = new DeterministicPolicy(sequence, exceptionStrategy);
+```
+
+### Threshold Policy (Count/Time-Based)
+
+```csharp
+// Inject faults only for first 5 operations
+var policy = ThresholdPolicy.FirstN(5, delayStrategy);
+
+// Inject faults only after 10 operations
+var policy = ThresholdPolicy.AfterN(10, exceptionStrategy);
+
+// Inject faults between operation 5 and 15
+var policy = ThresholdPolicy.BetweenCounts(5, 15, delayStrategy);
+
+// Inject faults only for 30 seconds after start
+var policy = ThresholdPolicy.ForDuration(TimeSpan.FromSeconds(30), delayStrategy);
+
+// Inject faults only between specific times (UTC)
+var policy = ThresholdPolicy.BetweenTimes(
+    new TimeSpan(9, 0, 0),   // 9:00 AM UTC
+    new TimeSpan(17, 0, 0),  // 5:00 PM UTC
+    delayStrategy);
+```
+
+## Per-Operation Configuration
+
+Configure different chaos settings for each operation:
+
+```csharp
+var options = new ChaosOptionsBuilder()
+    .Enable()
+    
+    // Acquire: 20% exception failures
+    .ConfigureOperation("AcquireAsync", op => op
+        .Enable()
+        .WithPolicy(new ProbabilisticPolicy(0.2, exceptionStrategy)))
+    
+    // Renew: Delay on first 5 renewals
+    .ConfigureOperation("RenewAsync", op => op
+        .Enable()
+        .WithPolicy(ThresholdPolicy.FirstN(5, delayStrategy)))
+    
+    // Release: No chaos
+    .ConfigureOperation("ReleaseAsync", op => op
+        .Disable())
+    
+    // Break: Always succeed
+    .Build();
+
+var chaosProvider = new ChaosLeaseProviderV2(actualProvider, options);
+```
+
+## Configuration with Fluent Builder
+
+```csharp
+var options = new ChaosOptionsBuilder()
+    .Enable()
+    .WithProviderName("MyChaosProvider")
+    .WithSeed(42) // Reproducible random for testing
+    .WithDefaultPolicy(probabilisticPolicy)
+    .AddFaultStrategies(delayStrategy, exceptionStrategy)
+    .WithMaxFaultRate(10.0) // Max 10 faults per second
+    .WithRateLimitWindow(60) // In 60-second windows
+    .EnableObservability()
+    .WithMinimumSeverity(FaultSeverity.Low)
+    .AddGlobalMetadata("Environment", "Test")
+    .AddEnvironmentTag("Region", "US-West")
+    .WithFailFast(true) // Throw on config errors
+    .ConfigureOperation("RenewAsync", op => op
+        .Enable()
+        .WithPolicy(deterministicPolicy)
+        .WithMaxFaultRate(5.0)
+        .WithMinimumSeverity(FaultSeverity.Medium)
+        .ForLeasePattern("critical-*") // Only for leases matching pattern
+        .AddMetadata("Critical", true)
+        .WithConditions(cond => cond
+            .OnlyOnRetry() // Only inject on retry attempts
+            .FromAttempt(2) // Start from 2nd attempt
+            .UntilAttempt(5) // Stop after 5th attempt
+            .WithMetadata("SpecialFlag", "Value")
+            .WithTimeConditions(time => time
+                .BetweenTimes(new TimeSpan(9, 0, 0), new TimeSpan(17, 0, 0))
+                .OnDaysOfWeek(DayOfWeek.Monday, DayOfWeek.Wednesday, DayOfWeek.Friday))))
+    .Build();
+```
+
+## Observability
+
+### Console Observer (Development)
+
+```csharp
+var observer = new ConsoleChaosObserver(
+    useColors: true,
+    includeTimestamps: true);
+
+// Output appears in console with color coding:
+// - Yellow: Fault injection decision
+// - Magenta: Fault executing
+// - Green: Fault executed successfully
+// - Red: Fault execution failed
+// - Gray: Fault skipped
+```
+
+### Diagnostic Observer (Integration with System.Diagnostics)
+
+```csharp
+var observer = new DiagnosticChaosObserver(
+    sourceName: "MyChaosEngine",
+    traceSwitch: new TraceSwitch("Chaos", "Chaos events"));
+
+// Writes to System.Diagnostics trace listeners
+// Integrates with existing diagnostic infrastructure
+```
+
+### Composite Observer (Multiple Observers)
+
+```csharp
+var composite = new CompositeChaosObserver(
+    new ConsoleChaosObserver(),
+    new DiagnosticChaosObserver());
+
+// Add more observers dynamically
+composite.AddObserver(myCustomObserver);
+
+// Events forwarded to all registered observers
 ```
 
 ## Testing Scenarios
 
-### Scenario 1: Test Acquisition Retry Logic
+### Scenario 1: Test Deterministic Retry Logic
 
 ```csharp
 [Fact]
-public async Task Should_Retry_On_Acquisition_Failure()
+public async Task Should_Succeed_After_3_Retries()
 {
-    var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-    {
-        // Fail first 2 attempts, succeed on 3rd
-        FailurePattern = new[] { true, true, false }
-    });
-
-    var leaseManager = await chaosProvider.CreateLeaseManagerAsync("test");
+    // Fail first 3 attempts, succeed on 4th
+    var policy = DeterministicPolicy.FailFirstN(3, 
+        ExceptionFaultStrategy.Create<ProviderUnavailableException>("Chaos"));
     
-    // Retry logic
+    var options = new ChaosOptionsBuilder()
+        .Enable()
+        .WithDefaultPolicy(policy)
+        .Build();
+    
+    var chaosProvider = new ChaosLeaseProviderV2(actualProvider, options);
+    
     ILease? lease = null;
-    for (int i = 0; i < 5; i++)
+    int attempts = 0;
+    
+    while (lease == null && attempts < 5)
     {
-        lease = await leaseManager.TryAcquireAsync();
-        if (lease != null) break;
-        await Task.Delay(100);
+        try
+        {
+            lease = await chaosProvider.AcquireLeaseAsync("test-lease", TimeSpan.FromMinutes(5));
+        }
+        catch (ProviderUnavailableException)
+        {
+            attempts++;
+            await Task.Delay(100);
+        }
     }
-
+    
     Assert.NotNull(lease);
+    Assert.Equal(3, attempts); // Exactly 3 retries
 }
 ```
 
@@ -193,362 +351,272 @@ public async Task Should_Retry_On_Acquisition_Failure()
 [Fact]
 public async Task Should_Detect_Renewal_Failure()
 {
-    var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-    {
-        RenewFailureProbability = 1.0  // Always fail renewal
-    });
-
-    var leaseManager = await chaosProvider.CreateLeaseManagerAsync("test");
-    var lease = await leaseManager.AcquireAsync(TimeSpan.FromSeconds(5));
-
+    var renewPolicy = new ProbabilisticPolicy(1.0, // Always fail
+        ExceptionFaultStrategy.Create<LeaseException>("Renewal failed"));
+    
+    var options = new ChaosOptionsBuilder()
+        .Enable()
+        .ConfigureOperation("RenewAsync", op => op
+            .Enable()
+            .WithPolicy(renewPolicy))
+        .Build();
+    
+    var observer = new ConsoleChaosObserver();
+    var chaosProvider = new ChaosLeaseProviderV2(actualProvider, options, observer);
+    
+    var lease = await chaosProvider.AcquireLeaseAsync("test", TimeSpan.FromSeconds(5));
+    
     bool renewalFailed = false;
-    lease.LeaseRenewalFailed += (sender, e) =>
-    {
-        renewalFailed = true;
-    };
-
+    lease.LeaseRenewalFailed += (sender, e) => renewalFailed = true;
+    
     // Wait for auto-renewal attempt
     await Task.Delay(TimeSpan.FromSeconds(4));
-
+    
     Assert.True(renewalFailed);
 }
 ```
 
-### Scenario 3: Test Lease Loss on Expiration
-
-```csharp
-[Fact]
-public async Task Should_Handle_Lease_Loss()
-{
-    var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-    {
-        RenewFailureProbability = 1.0
-    });
-
-    var leaseManager = await chaosProvider.CreateLeaseManagerAsync("test");
-    var lease = await leaseManager.AcquireAsync(TimeSpan.FromSeconds(5));
-
-    bool leaseLost = false;
-    lease.LeaseLost += (sender, e) =>
-    {
-        leaseLost = true;
-    };
-
-    // Wait for expiration
-    await Task.Delay(TimeSpan.FromSeconds(6));
-
-    Assert.True(leaseLost);
-}
-```
-
-### Scenario 4: Test Timeout Handling
+### Scenario 3: Test Timeout Handling with Latency
 
 ```csharp
 [Fact]
 public async Task Should_Timeout_On_High_Latency()
 {
-    var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-    {
-        LatencyProbability = 1.0,
-        MinLatency = TimeSpan.FromSeconds(5),
-        MaxLatency = TimeSpan.FromSeconds(10)
-    });
-
-    var leaseManager = await chaosProvider.CreateLeaseManagerAsync("test");
+    var delayStrategy = new DelayFaultStrategy(
+        TimeSpan.FromSeconds(5), 
+        TimeSpan.FromSeconds(10));
+    
+    var policy = new ProbabilisticPolicy(1.0, delayStrategy);
+    
+    var options = new ChaosOptionsBuilder()
+        .Enable()
+        .WithDefaultPolicy(policy)
+        .Build();
+    
+    var chaosProvider = new ChaosLeaseProviderV2(actualProvider, options);
     
     var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
     
     await Assert.ThrowsAsync<OperationCanceledException>(async () =>
     {
-        await leaseManager.AcquireAsync(cancellationToken: cts.Token);
+        await chaosProvider.AcquireLeaseAsync("test", TimeSpan.FromMinutes(5), cts.Token);
     });
 }
 ```
 
-### Scenario 5: Test Concurrent Acquisition
+### Scenario 4: Test First N Failures
 
 ```csharp
 [Fact]
-public async Task Should_Handle_Concurrent_Acquisition_With_Failures()
+public async Task Should_Fail_First_5_Then_Succeed()
 {
-    var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-    {
-        AcquireFailureProbability = 0.5
-    });
-
-    var tasks = Enumerable.Range(0, 10).Select(async i =>
-    {
-        var manager = await chaosProvider.CreateLeaseManagerAsync("shared-lock");
-        return await manager.TryAcquireAsync();
-    });
-
-    var results = await Task.WhenAll(tasks);
+    var policy = ThresholdPolicy.FirstN(5, 
+        ExceptionFaultStrategy.Create<LeaseException>("First 5 fail"));
     
-    // At most one should succeed (due to exclusivity)
-    var successCount = results.Count(l => l != null);
-    Assert.True(successCount <= 1);
-}
-```
-
-## Advanced Usage
-
-### Custom Exception Types
-
-```csharp
-var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-{
-    AcquireFailureProbability = 0.5,
-    ExceptionType = typeof(TimeoutException),
-    FailureMessage = "Simulated timeout"
-});
-```
-
-### Deterministic Failure Patterns
-
-```csharp
-// Fail every other operation
-var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-{
-    FailurePattern = new[] { false, true, false, true, false, true }
-});
-
-// Pattern repeats: succeed, fail, succeed, fail, ...
-```
-
-### Combining Multiple Chaos Types
-
-```csharp
-var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-{
-    AcquireFailureProbability = 0.2,   // 20% acquisition failures
-    RenewFailureProbability = 0.1,      // 10% renewal failures
-    LatencyProbability = 0.3,           // 30% operations delayed
-    MinLatency = TimeSpan.FromMilliseconds(50),
-    MaxLatency = TimeSpan.FromMilliseconds(200)
-});
-
-// Simulates realistic production chaos
-```
-
-## Integration with Test Frameworks
-
-### xUnit Example
-
-```csharp
-public class LeasingIntegrationTests : IAsyncLifetime
-{
-    private ILeaseProvider _chaosProvider;
-    private ILeaseProvider _actualProvider;
-
-    public async Task InitializeAsync()
+    var options = new ChaosOptionsBuilder()
+        .Enable()
+        .WithDefaultPolicy(policy)
+        .Build();
+    
+    var chaosProvider = new ChaosLeaseProviderV2(actualProvider, options);
+    
+    // First 5 should fail
+    for (int i = 0; i < 5; i++)
     {
-        _actualProvider = new BlobLeaseProvider(testOptions);
-        _chaosProvider = new ChaosLeaseProvider(_actualProvider, new ChaosOptions
+        await Assert.ThrowsAsync<LeaseException>(async () =>
         {
-            AcquireFailureProbability = 0.3
+            await chaosProvider.AcquireLeaseAsync($"lease-{i}", TimeSpan.FromMinutes(1));
         });
     }
-
-    [Fact]
-    public async Task TestLeaseResilience()
-    {
-        var manager = await _chaosProvider.CreateLeaseManagerAsync("test");
-        // Test logic here
-    }
-
-    public async Task DisposeAsync()
-    {
-        // Cleanup
-    }
+    
+    // 6th should succeed
+    var lease = await chaosProvider.AcquireLeaseAsync("lease-6", TimeSpan.FromMinutes(1));
+    Assert.NotNull(lease);
 }
 ```
 
-### NUnit Example
+## Configuration Validation
+
+The framework includes comprehensive validation:
 
 ```csharp
-[TestFixture]
-public class LeasingChaosTests
+var options = new ChaosOptionsBuilder()
+    .Enable()
+    .WithMaxFaultRate(-1.0) // INVALID: negative rate
+    .Build(); // Throws ChaosConfigurationException
+
+// Validation errors include:
+// - Negative seeds
+// - Invalid probability ranges (not 0.0-1.0)
+// - Negative fault rates
+// - Invalid time windows
+// - Duplicate strategy names
+// - Null policies/strategies
+// - Invalid threshold ranges
+```
+
+Manual validation:
+
+```csharp
+var validator = new ChaosOptionsValidator();
+var result = validator.Validate(options);
+
+if (!result.IsValid)
 {
-    private ILeaseProvider _chaosProvider;
-
-    [SetUp]
-    public async Task Setup()
-    {
-        var actualProvider = new CosmosLeaseProvider(testOptions);
-        _chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-        {
-            RenewFailureProbability = 0.5
-        });
-    }
-
-    [Test]
-    public async Task TestRenewalFailure()
-    {
-        // Test logic
-    }
+    Console.WriteLine(result.GetValidationSummary());
+    // Errors (2):
+    //   - MaxFaultRate must be positive. Current value: -1
+    //   - No default policy configured and no operation-specific policies defined
 }
+```
+
+## Thread Safety
+
+All components are thread-safe:
+- **.NET 6.0+**: Uses `Random.Shared` (built-in thread-safe)
+- **.NET Standard 2.0**: Uses `ThreadLocal<Random>` (thread-local instances)
+- **Policy state**: Lock-based synchronization for deterministic/threshold policies
+- **Observers**: Thread-safe collection management in composite observer
+
+## Legacy API (Backward Compatibility)
+
+The original `ChaosLeaseProvider` with `ChaosPolicy` is still available for backward compatibility:
+
+```csharp
+// Legacy API (still works, but limited features)
+var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosPolicy
+{
+    FailureRate = 0.1,
+    MinDelay = TimeSpan.FromMilliseconds(100),
+    MaxDelay = TimeSpan.FromSeconds(2),
+    FaultTypes = ChaosFaultType.Delay | ChaosFaultType.Exception
+});
+
+// ⚠️ Limitations:
+// - No per-operation configuration
+// - No renew/release fault injection
+// - No observability
+// - No advanced policies (deterministic, threshold)
+// - Thread safety improved but limited configurability
+```
+
+## Migration from Legacy API
+
+### Old Code (Version 4.x)
+```csharp
+var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosPolicy
+{
+    FailureRate = 0.2,
+    MinDelay = TimeSpan.FromMilliseconds(100),
+    MaxDelay = TimeSpan.FromSeconds(1),
+    FaultTypes = ChaosFaultType.Delay | ChaosFaultType.Exception
+});
+```
+
+### New Code (Version 5.x)
+```csharp
+var delayStrategy = new DelayFaultStrategy(
+    TimeSpan.FromMilliseconds(100),
+    TimeSpan.FromSeconds(1));
+
+var exceptionStrategy = ExceptionFaultStrategy.Create<ProviderUnavailableException>(
+    "Chaos fault injection");
+
+var policy = new ProbabilisticPolicy(0.2, delayStrategy, exceptionStrategy);
+
+var options = new ChaosOptionsBuilder()
+    .Enable()
+    .WithDefaultPolicy(policy)
+    .Build();
+
+var chaosProvider = new ChaosLeaseProviderV2(actualProvider, options);
+```
+
+### Benefits of Migration
+- ✅ **Full lifecycle coverage** (Renew, Release)
+- ✅ **Deterministic testing** (repeatable scenarios)
+- ✅ **Observability** (see what's happening)
+- ✅ **Per-operation config** (different chaos per operation)
+- ✅ **Validation** (fail fast on config errors)
+- ✅ **Thread safety** (proper random generation)
+
+## Architecture
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                  ChaosLeaseProviderV2                       │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │ Configuration (ChaosOptions)                          │  │
+│  │ • Global Policy                                       │  │
+│  │ • Per-Operation Policies (Acquire, Renew, Release)   │  │
+│  │ • Fault Strategies                                    │  │
+│  │ • Observers                                           │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                           │                                 │
+│         ┌─────────────────┼─────────────────┐              │
+│         ▼                 ▼                 ▼              │
+│  ┌───────────┐     ┌──────────┐     ┌──────────────┐      │
+│  │  Policy   │────▶│ Strategy │────▶│   Observer   │      │
+│  │ Decision  │     │Execution │     │Notification  │      │
+│  └───────────┘     └──────────┘     └──────────────┘      │
+│         │                 │                                 │
+│         └─────────────────┴────────────────┐               │
+│                                             ▼               │
+│                           ┌────────────────────────┐        │
+│                           │   ChaosLease Wrapper   │        │
+│                           │  (Renew/Release Chaos) │        │
+│                           └────────────────────────┘        │
+│                                       │                     │
+│                                       ▼                     │
+│                           ┌────────────────────────┐        │
+│                           │   Actual ILease        │        │
+│                           └────────────────────────┘        │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ## Best Practices
 
 ### 1. Use Only in Test Projects
-
 ```xml
 <!-- ✅ Good - Only in test project -->
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <PackageReference Include="DistributedLeasing.ChaosEngineering" Version="5.0.0" />
-  </ItemGroup>
-</Project>
+<ItemGroup>
+  <PackageReference Include="DistributedLeasing.ChaosEngineering" Version="5.0.0" />
+</ItemGroup>
 ```
 
-```xml
-<!-- ❌ Bad - Don't reference in production projects -->
-```
-
-### 2. Start with Low Probabilities
-
+### 2. Start with Deterministic Policies for Tests
 ```csharp
-// ✅ Start conservative
-var chaosOptions = new ChaosOptions
-{
-    AcquireFailureProbability = 0.1  // 10%
-};
+// ✅ Deterministic - reproducible
+var policy = DeterministicPolicy.FailFirstN(3, exceptionStrategy);
 
-// ❌ Avoid extreme probabilities initially
-var chaosOptions = new ChaosOptions
-{
-    AcquireFailureProbability = 0.9  // 90% - too high for initial testing
-};
+// ❌ Probabilistic - flaky tests
+var policy = new ProbabilisticPolicy(0.5, exceptionStrategy);
 ```
 
-### 3. Combine with Retry Logic
-
+### 3. Use Threshold Policies for Time-Limited Chaos
 ```csharp
-async Task<ILease?> AcquireWithRetry(ILeaseManager manager, int maxAttempts)
-{
-    for (int i = 0; i < maxAttempts; i++)
-    {
-        var lease = await manager.TryAcquireAsync();
-        if (lease != null) return lease;
-        await Task.Delay(TimeSpan.FromMilliseconds(100 * (i + 1)));
-    }
-    return null;
-}
-
-// Test the retry logic
-var lease = await AcquireWithRetry(leaseManager, 5);
-Assert.NotNull(lease);
+// Chaos only for first 30 seconds
+var policy = ThresholdPolicy.ForDuration(TimeSpan.FromSeconds(30), delayStrategy);
 ```
 
-### 4. Test All Failure Modes
-
+### 4. Enable Observability for Debugging
 ```csharp
-[Theory]
-[InlineData(1.0, 0.0, 0.0)]  // Acquire failures
-[InlineData(0.0, 1.0, 0.0)]  // Renew failures
-[InlineData(0.0, 0.0, 1.0)]  // Release failures
-public async Task Should_Handle_All_Failure_Types(
-    double acquireProb,
-    double renewProb,
-    double releaseProb)
-{
-    var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-    {
-        AcquireFailureProbability = acquireProb,
-        RenewFailureProbability = renewProb,
-        ReleaseFailureProbability = releaseProb
-    });
-
-    // Test logic for each failure type
-}
+var observer = new ConsoleChaosObserver();
+var chaosProvider = new ChaosLeaseProviderV2(actualProvider, options, observer);
 ```
 
-### 5. Document Chaos Parameters
-
+### 5. Validate Configuration Early
 ```csharp
-// ✅ Good - Clear documentation
-var chaosProvider = new ChaosLeaseProvider(actualProvider, new ChaosOptions
-{
-    // Simulate 20% network failures during acquisition
-    AcquireFailureProbability = 0.2,
-    
-    // Simulate occasional renewal delays (100-500ms)
-    LatencyProbability = 0.3,
-    MinLatency = TimeSpan.FromMilliseconds(100),
-    MaxLatency = TimeSpan.FromMilliseconds(500)
-});
-```
-
-## Limitations
-
-1. **Not for Production**: Never deploy chaos provider to production
-2. **Decorator Only**: Requires wrapping a real provider
-3. **Randomness**: Probability-based failures are non-deterministic
-4. **Single Instance**: Chaos applies only to local provider instance
-
-## Troubleshooting
-
-### "Chaos provider not injecting failures"
-
-**Problem:** Probability set to 0.0 or failure pattern incorrect.
-
-**Solution:** Verify chaos options are configured:
-```csharp
-Assert.True(chaosOptions.AcquireFailureProbability > 0.0);
-```
-
-### "Too many failures in tests"
-
-**Problem:** Probability too high for test stability.
-
-**Solution:** Reduce failure probabilities:
-```csharp
-var chaosOptions = new ChaosOptions
-{
-    AcquireFailureProbability = 0.1  // Lower from 0.5
-};
-```
-
-### "Nondeterministic test failures"
-
-**Problem:** Random failures cause flaky tests.
-
-**Solution:** Use deterministic patterns:
-```csharp
-var chaosOptions = new ChaosOptions
-{
-    FailurePattern = new[] { false, true, false }  // Deterministic
-};
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│ Test Code                                            │
-│ ┌──────────────────────────────────────────┐        │
-│ │ ChaosLeaseProvider (Decorator)           │        │
-│ │ ┌────────────────────────────────────┐   │        │
-│ │ │ Chaos Logic:                        │   │        │
-│ │ │ • Failure injection                 │   │        │
-│ │ │ • Latency simulation                │   │        │
-│ │ │ • Pattern-based failures            │   │        │
-│ │ └────────────────────────────────────┘   │        │
-│ │           │                                │        │
-│ │           │ Delegates to                   │        │
-│ │           ▼                                │        │
-│ │ ┌────────────────────────────────────┐   │        │
-│ │ │ Actual Provider                     │   │        │
-│ │ │ (Blob, Cosmos, Redis)               │   │        │
-│ │ └────────────────────────────────────┘   │        │
-│ └──────────────────────────────────────────┘        │
-└─────────────────────────────────────────────────────┘
+var options = new ChaosOptionsBuilder()
+    .Enable()
+    .WithFailFast(true) // Throws on invalid config
+    .Build();
 ```
 
 ## Framework Compatibility
 
 - **.NET Standard 2.0** - Compatible with .NET Framework 4.6.1+, .NET Core 2.0+
+- **.NET 6.0** - Long-term support release
 - **.NET 8.0** - Long-term support release
 - **.NET 10.0** - Latest release
 
@@ -566,6 +634,8 @@ var chaosOptions = new ChaosOptions
 
 - [GitHub Repository](https://github.com/pranshujawade/DistributedLeasing)
 - [Chaos Engineering Principles](https://principlesofchaos.org/)
+- [Design Document](../../.qoder/quests/chaos-engineering-review.md)
+- [Implementation Progress](../../.qoder/quests/chaos-engineering-implementation-progress.md)
 
 ## License
 
